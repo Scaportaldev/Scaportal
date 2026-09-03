@@ -2,6 +2,7 @@ import { handle, json, readJson, HttpError } from "@/server/http";
 import { requireSuperadmin, hashPassword, logAudit } from "@/server/auth";
 import { nowIso } from "@/server/db";
 import { findUserById, findUserByUsername, updateUser, deleteUser, safeUser } from "@/server/users";
+import { normalizePermissions } from "@/lib/permissions";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -72,6 +73,15 @@ export const PATCH = handle(async (req, { params }) => {
     set.password_changed_at = nowIso();
   }
 
+  // Hak akses per-tools. Superadmin selalu full akses -> toggle tidak bisa diubah.
+  const targetRole = set.role || user.role;
+  if (body.permissions !== undefined) {
+    if (targetRole === "superadmin") {
+      throw new HttpError(400, "Superadmin selalu memiliki akses penuh; hak akses tidak bisa diubah");
+    }
+    set.permissions = normalizePermissions(body.permissions);
+  }
+
   if (!Object.keys(set).length) throw new HttpError(400, "Tidak ada perubahan");
 
   set.updated_at = nowIso();
@@ -84,12 +94,13 @@ export const PATCH = handle(async (req, { params }) => {
       "ubah_data_user",
       "user",
       id,
-      { name: user.name, username: user.username, email: user.email || "", role: user.role },
+      { name: user.name, username: user.username, email: user.email || "", role: user.role, permissions: user.permissions },
       {
         name: fresh.name,
         username: fresh.username,
         email: fresh.email || "",
         role: fresh.role,
+        permissions: fresh.permissions,
         password_diubah: !!body.new_password,
       },
     );

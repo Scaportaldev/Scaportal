@@ -1,5 +1,5 @@
 import { handle, json, readJson, HttpError } from "@/server/http";
-import { requireSuperadmin } from "@/server/auth";
+import { requirePerm } from "@/server/auth";
 import { nowIso } from "@/server/db";
 import { listCalculations, insertCalculation } from "@/server/hpp";
 
@@ -7,12 +7,12 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export const GET = handle(async (req) => {
-  await requireSuperadmin(req);
+  await requirePerm(req, "hpp");
   return json(await listCalculations(500));
 });
 
 export const POST = handle(async (req) => {
-  const current = await requireSuperadmin(req);
+  const current = await requirePerm(req, "hpp");
   const body = await readJson(req);
   if (!body.name || !String(body.name).trim()) throw new HttpError(400, "Nama perhitungan wajib diisi");
   const now = nowIso();

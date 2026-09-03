@@ -1,5 +1,5 @@
 import { handle, json, readJson, HttpError, qp } from "@/server/http";
-import { requireAuth } from "@/server/auth";
+import { requirePerm } from "@/server/auth";
 import {
   newId, nowIso, num, validateMutasiJenis, getItemOr404, getPoOr404, listMutations, insertMutationTx,
 } from "@/server/klien";
@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export const GET = handle(async (req) => {
-  await requireAuth(req);
+  await requirePerm(req, "klien");
   const rows = await listMutations({
     klien_id: qp(req, "klien_id"),
     po_id: qp(req, "po_id"),
@@ -21,7 +21,7 @@ export const GET = handle(async (req) => {
 });
 
 export const POST = handle(async (req) => {
-  const current = await requireAuth(req);
+  const current = await requirePerm(req, "klien");
   const body = await readJson(req);
   const jenis = String(body?.jenis || "");
   validateMutasiJenis(jenis);

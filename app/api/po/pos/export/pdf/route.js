@@ -1,5 +1,5 @@
 import { handle, qp, pdfResponse } from "@/server/http";
-import { requireAuth } from "@/server/auth";
+import { requirePerm } from "@/server/auth";
 import { listPos } from "@/server/po/repo";
 import { enrichPo, filterPos } from "@/server/po/stages";
 import { buildPoRekapPdf } from "@/server/pdf/poPdf";
@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export const GET = handle(async (req) => {
-  await requireAuth(req);
+  await requirePerm(req, "po");
   const search = qp(req, "search");
   const bucket = qp(req, "bucket");
   const month = qp(req, "month");

@@ -1,5 +1,5 @@
 import { handle, json, readJson } from "@/server/http";
-import { requireAuth } from "@/server/auth";
+import { requirePerm } from "@/server/auth";
 import { listPos } from "@/server/po/repo";
 import { computeStatus, rangesOverlap } from "@/server/po/stages";
 
@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export const POST = handle(async (req) => {
-  await requireAuth(req);
+  await requirePerm(req, "po");
   const body = await readJson(req);
   const estStart = body.est_start;
   const estEnd = body.est_end;

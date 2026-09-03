@@ -1,5 +1,5 @@
 import { handle, json, readJson, HttpError } from "@/server/http";
-import { requireAuth } from "@/server/auth";
+import { requirePerm } from "@/server/auth";
 import {
   num, validateMutasiJenis, getMutationOr404, getItemOr404, updateMutationTx, deleteMutationTx,
 } from "@/server/klien";
@@ -13,7 +13,7 @@ async function findItem(id) {
 }
 
 export const PUT = handle(async (req, { params }) => {
-  await requireAuth(req);
+  await requirePerm(req, "klien");
   const { id } = await params;
   const m = await getMutationOr404(id);
   const body = await readJson(req);
@@ -45,7 +45,7 @@ export const PUT = handle(async (req, { params }) => {
 });
 
 export const DELETE = handle(async (req, { params }) => {
-  await requireAuth(req);
+  await requirePerm(req, "klien");
   const { id } = await params;
   const m = await getMutationOr404(id);
   const item = await findItem(m.item_id);

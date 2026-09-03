@@ -1,5 +1,5 @@
 import { handle, json, readJson, HttpError } from "@/server/http";
-import { requireAuth } from "@/server/auth";
+import { requirePerm } from "@/server/auth";
 import { nowIso } from "@/server/db";
 import { getPo, updatePo } from "@/server/po/repo";
 import { enrichPo } from "@/server/po/stages";
@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export const POST = handle(async (req, { params }) => {
-  const current = await requireAuth(req);
+  const current = await requirePerm(req, "po");
   const { id } = await params;
   const body = await readJson(req);
   const status = String(body.status || "");

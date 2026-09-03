@@ -1,5 +1,5 @@
 import { handle, pdfResponse, qp, HttpError } from "@/server/http";
-import { requireAuth } from "@/server/auth";
+import { requirePerm } from "@/server/auth";
 import { loadTree, listMutations } from "@/server/klien";
 import { buildKlienStockPdf, buildKlienHistoryPdf } from "@/server/pdf/klienPdf";
 
@@ -14,7 +14,7 @@ const fmt = (v) => {
 };
 
 export const GET = handle(async (req) => {
-  await requireAuth(req);
+  await requirePerm(req, "klien");
   const kind = qp(req, "kind") || "stok";
 
   if (kind === "stok") {

@@ -32,9 +32,10 @@ const PoCalendar = lazy(() => import("@/views/po/PoCalendar"));
 // Stok Klien (tool baru)
 const KlienDashboard = lazy(() => import("@/views/klien/Dashboard"));
 const KlienHistory = lazy(() => import("@/views/klien/History"));
-// Jatuh Tempo Klien (tool baru — Superadmin only)
+// Jatuh Tempo Klien
 const TempoInvoices = lazy(() => import("@/views/tempo/Invoices"));
 const TempoReports = lazy(() => import("@/views/tempo/Reports"));
+const NoAccess = lazy(() => import("@/views/NoAccess"));
 
 function Protected({ children }) {
   const { user } = useAuth();
@@ -43,13 +44,24 @@ function Protected({ children }) {
   return children;
 }
 
-function RequireSuper({ children }) {
-  const { user } = useAuth();
+/**
+ * Guard per-tools: bila toggle permission `perm` OFF, user dilempar ke halaman
+ * beranda yang diizinkan (atau halaman "belum ada akses"). Superadmin selalu lolos.
+ */
+function RequirePerm({ perm, children }) {
+  const { user, perms, homePath } = useAuth();
   if (user === undefined) return <AppSkeleton />;
   if (!user) return <Navigate to="/login" replace />;
-  if (user.role !== "superadmin") return <Navigate to="/stok" replace />;
+  if (!perms[perm]) return <Navigate to={homePath} replace />;
   return children;
 }
+
+function HomeRedirect() {
+  const { homePath } = useAuth();
+  return <Navigate to={homePath} replace />;
+}
+
+const P = (perm, el) => <RequirePerm perm={perm}>{el}</RequirePerm>;
 
 function App() {
   return (
@@ -65,31 +77,32 @@ function App() {
                 <Routes>
                   <Route path="/login" element={<Login />} />
                   <Route path="/" element={<Protected><AppShell /></Protected>}>
-                    <Route index element={<Navigate to="/stok" replace />} />
-                    {/* Stok tools */}
-                    <Route path="stok" element={<Dashboard />} />
-                    <Route path="stok/kertas" element={<PaperMutations />} />
-                    <Route path="stok/tinta" element={<InkMutations />} />
-                    <Route path="stok/lainnya" element={<OtherMutations />} />
-                    <Route path="stok/laporan-stok" element={<StockReport />} />
-                    <Route path="stok/laporan-detail" element={<RequireSuper><DetailReport /></RequireSuper>} />
-                    <Route path="stok/log-user" element={<LogsUsers />} />
-                    <Route path="stok/tutup-tahun" element={<YearClose />} />
-                    {/* HPP tools — superadmin only */}
-                    <Route path="hpp" element={<RequireSuper><HppCalculator /></RequireSuper>} />
-                    {/* PO Tracker tools */}
-                    <Route path="po" element={<PoDashboard />} />
-                    <Route path="po/pos" element={<PoList />} />
-                    <Route path="po/pos/new" element={<PoForm />} />
-                    <Route path="po/pos/:id" element={<PoDetail />} />
-                    <Route path="po/pos/:id/edit" element={<PoForm />} />
-                    <Route path="po/kalender" element={<PoCalendar />} />
-                    {/* Stok Klien tools — Superadmin + Admin/PIC */}
-                    <Route path="stok-klien" element={<KlienDashboard />} />
-                    <Route path="stok-klien/riwayat" element={<KlienHistory />} />
-                    {/* Jatuh Tempo Klien tools — Superadmin only */}
-                    <Route path="tempo" element={<RequireSuper><TempoInvoices /></RequireSuper>} />
-                    <Route path="tempo/laporan" element={<RequireSuper><TempoReports /></RequireSuper>} />
+                    <Route index element={<HomeRedirect />} />
+                    <Route path="tidak-ada-akses" element={<NoAccess />} />
+                    {/* Stok SCA */}
+                    <Route path="stok" element={P("canStok", <Dashboard />)} />
+                    <Route path="stok/kertas" element={P("canStok", <PaperMutations />)} />
+                    <Route path="stok/tinta" element={P("canStok", <InkMutations />)} />
+                    <Route path="stok/lainnya" element={P("canStok", <OtherMutations />)} />
+                    <Route path="stok/laporan-stok" element={P("canStok", <StockReport />)} />
+                    <Route path="stok/laporan-detail" element={P("canStokDetail", <DetailReport />)} />
+                    <Route path="stok/log-user" element={P("canStokLogs", <LogsUsers />)} />
+                    <Route path="stok/tutup-tahun" element={P("canStokYearClose", <YearClose />)} />
+                    {/* Kalkulator HPP */}
+                    <Route path="hpp" element={P("canHpp", <HppCalculator />)} />
+                    {/* PO Tracker */}
+                    <Route path="po" element={P("canPo", <PoDashboard />)} />
+                    <Route path="po/pos" element={P("canPo", <PoList />)} />
+                    <Route path="po/pos/new" element={P("canPo", <PoForm />)} />
+                    <Route path="po/pos/:id" element={P("canPo", <PoDetail />)} />
+                    <Route path="po/pos/:id/edit" element={P("canPo", <PoForm />)} />
+                    <Route path="po/kalender" element={P("canPo", <PoCalendar />)} />
+                    {/* Stok Klien */}
+                    <Route path="stok-klien" element={P("canStokKlien", <KlienDashboard />)} />
+                    <Route path="stok-klien/riwayat" element={P("canStokKlien", <KlienHistory />)} />
+                    {/* Jatuh Tempo Klien */}
+                    <Route path="tempo" element={P("canTempo", <TempoInvoices />)} />
+                    <Route path="tempo/laporan" element={P("canTempo", <TempoReports />)} />
                     {/* Legacy aliases (backward compat) */}
                     <Route path="kertas" element={<Navigate to="/stok/kertas" replace />} />
                     <Route path="tinta" element={<Navigate to="/stok/tinta" replace />} />

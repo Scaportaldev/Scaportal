@@ -1,5 +1,5 @@
 import { handle, json, readJson, HttpError } from "@/server/http";
-import { requireAuth } from "@/server/auth";
+import { requirePerm } from "@/server/auth";
 import { nowIso } from "@/server/db";
 import { getPo, updatePo, deletePo, findPoByNumber } from "@/server/po/repo";
 import { enrichPo } from "@/server/po/stages";
@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export const GET = handle(async (req, { params }) => {
-  await requireAuth(req);
+  await requirePerm(req, "po");
   const { id } = await params;
   const doc = await getPo(id);
   if (!doc) throw new HttpError(404, "PO tidak ditemukan");
@@ -16,7 +16,7 @@ export const GET = handle(async (req, { params }) => {
 });
 
 export const PUT = handle(async (req, { params }) => {
-  const current = await requireAuth(req);
+  const current = await requirePerm(req, "po");
   const { id } = await params;
   const body = await readJson(req);
   const existing = await getPo(id);
@@ -59,7 +59,7 @@ export const PUT = handle(async (req, { params }) => {
 });
 
 export const DELETE = handle(async (req, { params }) => {
-  await requireAuth(req);
+  await requirePerm(req, "po");
   const { id } = await params;
   const existing = await getPo(id);
   if (!existing) throw new HttpError(404, "PO tidak ditemukan");

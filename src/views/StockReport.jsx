@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { FileDown, Filter, Inbox } from "lucide-react";
 import { toast } from "sonner";
 import api, { downloadPdf } from "@/lib/api";
-import { apiError } from "@/context/AuthContext";
+import { useAuth, apiError } from "@/context/AuthContext";
 import { formatNumber } from "@/lib/format";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,6 +18,7 @@ import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription } from "@/
 import PageContainer from "@/components/layout/PageContainer";
 
 export default function StockReport() {
+  const { perms } = useAuth();
   const [fSupplier, setFSupplier] = useState("all");
 
   // Cache react-query: tampil instan dari cache, refresh otomatis di background.
@@ -76,7 +77,7 @@ export default function StockReport() {
       testid="stock-report-page"
       pageTitle="Laporan Stok Ringkas"
       pageDescription={`Rekap stok saat ini (tanpa nominal) — tahun ${data?.year || ""}.`}
-      pageHeaderAction={(
+      pageHeaderAction={perms.canStokPdf && (
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" className="gap-2" data-testid="pdf-paper-mutations" onClick={() => dl("/pdf/paper-mutations", "laporan-mutasi-kertas.pdf")}>
             <FileDown className="h-4 w-4" /> Mutasi Kertas

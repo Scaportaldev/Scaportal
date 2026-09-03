@@ -1,12 +1,12 @@
 import { handle, json, readJson, HttpError } from "@/server/http";
-import { requireSuperadmin } from "@/server/auth";
+import { requirePerm } from "@/server/auth";
 import { getInvoiceOr404, enrich, num, newId, nowIso, updateInvoice } from "@/server/tempo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export const POST = handle(async (req, { params }) => {
-  await requireSuperadmin(req);
+  await requirePerm(req, "tempo");
   const { id } = await params;
   const inv = await getInvoiceOr404(id);
   const body = await readJson(req);

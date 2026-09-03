@@ -1,12 +1,12 @@
 import { handle, json, readJson, HttpError } from "@/server/http";
-import { requireAuth } from "@/server/auth";
+import { requirePerm } from "@/server/auth";
 import { num, validateItemStatus, getItemOr404, updateItem, deleteItemCascade } from "@/server/klien";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export const PUT = handle(async (req, { params }) => {
-  await requireAuth(req);
+  await requirePerm(req, "klien");
   const { id } = await params;
   await getItemOr404(id);
   const body = await readJson(req);
@@ -35,7 +35,7 @@ export const PUT = handle(async (req, { params }) => {
 });
 
 export const DELETE = handle(async (req, { params }) => {
-  await requireAuth(req);
+  await requirePerm(req, "klien");
   const { id } = await params;
   await getItemOr404(id);
   await deleteItemCascade(id); // mutasi item ikut terhapus (FK cascade)

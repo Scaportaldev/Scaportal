@@ -4,6 +4,7 @@ import {
   computePaperStocks, computeInkStocks, computeOtherStocks, signedQty, paperKey, round,
 } from "@/server/stock";
 import { ID_MONTHS } from "@/server/format";
+import { hasPermission } from "@/lib/permissions";
 
 /** Semua mutasi satu tipe untuk satu tahun (type = paper | ink | other). */
 export async function allYear(type, year) {
@@ -80,7 +81,7 @@ export async function computeDashboard(current) {
     recent: combined.slice(0, 10),
     year,
   };
-  if (current?.role === "superadmin") {
+  if (hasPermission(current, "stok_detail")) {
     result.nominal_paper = nominalPaper;
     result.nominal_ink = nominalInk;
     result.nominal_other = nominalOther;

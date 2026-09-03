@@ -70,12 +70,14 @@ export default function CommandPalette({ open, onOpenChange }) {
       { to: "/stok/tutup-tahun", label: "Tutup Tahun", icon: ICONS.tahun, show: perms.canStokYearClose },
     ].filter((i) => i.show);
 
-    const po = [
-      { to: "/po", label: "Dashboard PO", icon: ICONS.dashboard, show: true },
-      { to: "/po/pos", label: "Daftar PO", icon: ICONS.poList, show: true },
-      { to: "/po/pos/new", label: "Buat PO Baru", icon: ListTodo, show: true },
-      { to: "/po/kalender", label: "Kalender Jadwal", icon: ICONS.kalender, show: true },
-    ];
+    const po = perms.canPo
+      ? [
+          { to: "/po", label: "Dashboard PO", icon: ICONS.dashboard, show: true },
+          { to: "/po/pos", label: "Daftar PO", icon: ICONS.poList, show: true },
+          { to: "/po/pos/new", label: "Buat PO Baru", icon: ListTodo, show: true },
+          { to: "/po/kalender", label: "Kalender Jadwal", icon: ICONS.kalender, show: true },
+        ]
+      : [];
 
     const hpp = perms.canHpp
       ? [{ to: "/hpp", label: "Kalkulator HPP", icon: ICONS.hpp, show: true }]
@@ -101,7 +103,7 @@ export default function CommandPalette({ open, onOpenChange }) {
       ...(klien.length ? [{ heading: "Stok Klien", items: klien }] : []),
       ...(tempo.length ? [{ heading: "Jatuh Tempo Klien", items: tempo }] : []),
       ...(hpp.length ? [{ heading: "Kalkulator", items: hpp }] : []),
-    ];
+    ].filter((g) => g.items.length > 0);
   }, [perms]);
 
   const go = (to) => {

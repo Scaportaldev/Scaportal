@@ -1,17 +1,17 @@
 import { handle, json, readJson, HttpError, qp } from "@/server/http";
-import { requireAuth } from "@/server/auth";
+import { requirePerm } from "@/server/auth";
 import { newId, nowIso, num, validateItemStatus, getPoOr404, listItems, insertItem } from "@/server/klien";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export const GET = handle(async (req) => {
-  await requireAuth(req);
+  await requirePerm(req, "klien");
   return json(await listItems(qp(req, "po_id")));
 });
 
 export const POST = handle(async (req) => {
-  await requireAuth(req);
+  await requirePerm(req, "klien");
   const body = await readJson(req);
   const poId = String(body?.po_id ?? "").trim();
   if (!poId) throw new HttpError(400, "PO wajib dipilih");

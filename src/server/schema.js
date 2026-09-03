@@ -39,12 +39,17 @@ export const DDL = [
     \`note\` TEXT NULL,
     \`password_hash\` VARCHAR(255) NOT NULL,
     \`role\` ENUM('superadmin','admin') NOT NULL,
+    \`permissions\` JSON NULL,
     \`active\` TINYINT(1) NOT NULL DEFAULT 1,
     \`password_changed_at\` DATETIME(3) NULL,
     \`created_at\` DATETIME(3) NOT NULL,
     \`updated_at\` DATETIME(3) NULL,
     UNIQUE KEY \`uq_users_username\` (\`username\`)
   ) ${T}`,
+
+  // Migrasi idempotent untuk database yang dibuat sebelum kolom `permissions` ada.
+  // Hak akses per-user (JSON {stok, stok_detail, ...}); NULL = semua OFF (khusus non-superadmin).
+  `ALTER TABLE \`users\` ADD COLUMN IF NOT EXISTS \`permissions\` JSON NULL AFTER \`role\``,
 
   `CREATE TABLE IF NOT EXISTS \`settings\` (
     \`key\` VARCHAR(64) NOT NULL PRIMARY KEY,

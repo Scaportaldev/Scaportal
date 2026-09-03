@@ -2,6 +2,7 @@ import { handle, json, readJson, HttpError } from "@/server/http";
 import { requireSuperadmin, hashPassword } from "@/server/auth";
 import { nowIso } from "@/server/db";
 import { listUsers, findUserByUsername, insertUser, safeUser } from "@/server/users";
+import { normalizePermissions, emptyPermissions } from "@/lib/permissions";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,13 +13,18 @@ export const GET = handle(async (req) => {
   return json(docs.map(safeUser));
 });
 
+/**
+ * Registrasi user baru (khusus Superadmin).
+ * `role` default `admin`; hak akses ditentukan `permissions` (default semua OFF).
+ * Bila role `superadmin`, permissions diabaikan (selalu full akses).
+ */
 export const POST = handle(async (req) => {
   await requireSuperadmin(req);
   const body = await readJson(req);
   const name = String(body.name || "").trim();
   const username = String(body.username || "").trim();
   const password = String(body.password || "");
-  const role = body.role;
+  const role = body.role || "admin";
   const email = String(body.email || "").trim();
   const phone = String(body.phone || "").trim();
 
@@ -40,6 +46,7 @@ export const POST = handle(async (req) => {
     phone,
     password_hash: hashPassword(password),
     role,
+    permissions: role === "superadmin" ? emptyPermissions() : normalizePermissions(body.permissions),
     active: true,
     created_at: nowIso(),
   };

@@ -88,7 +88,7 @@ export default function AccountDialog({ open, onOpenChange }) {
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <span className="truncate">@{user?.username}</span>
               <Badge variant={isSuper ? "default" : "outline"} className="text-[10px]">
-                {isSuper ? "Superadmin" : "Admin/PIC"}
+                {isSuper ? "Superadmin" : "Admin"}
               </Badge>
             </div>
           </div>

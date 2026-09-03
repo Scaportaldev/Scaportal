@@ -1,5 +1,5 @@
 import { handle, json, HttpError } from "@/server/http";
-import { requireAuth } from "@/server/auth";
+import { requirePerm } from "@/server/auth";
 import { nowIso } from "@/server/db";
 import { getPo, updatePo, getFile, markFileDeleted } from "@/server/po/repo";
 import { deleteObject, getObjectStream } from "@/server/r2";
@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 // Proxy foto dari R2 lewat domain aplikasi.
 // Menghindari masalah URL pub-*.r2.dev (rate limit / lambat / diblokir di jaringan tertentu).
 export const GET = handle(async (req, { params }) => {
-  await requireAuth(req);
+  await requirePerm(req, "po");
   const { fileId } = await params;
   const rec = await getFile(fileId);
   if (!rec || !rec.r2_key) throw new HttpError(404, "Foto tidak ditemukan");
@@ -27,7 +27,7 @@ export const GET = handle(async (req, { params }) => {
 });
 
 export const DELETE = handle(async (req, { params }) => {
-  await requireAuth(req);
+  await requirePerm(req, "po");
   const { id, num, fileId } = await params;
   const rec = await getFile(fileId, { includeDeleted: true });
   if (rec && rec.r2_key) {

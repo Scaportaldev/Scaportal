@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { UserPlus, Power, Trash2, KeyRound, ShieldCheck, Inbox, UserCog } from "lucide-react";
+import { UserPlus, Power, Trash2, KeyRound, ShieldCheck, Inbox, UserCog, SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
 import api from "@/lib/api";
 import { useAuth, apiError } from "@/context/AuthContext";
@@ -15,15 +15,14 @@ import {
   Tabs, TabsList, TabsTrigger, TabsContent,
 } from "@/components/ui/tabs";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
-import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription } from "@/components/ui/empty";
 import PageContainer from "@/components/layout/PageContainer";
 import TablePagination from "@/components/TablePagination";
 import UserEditDialog from "@/components/UserEditDialog";
+import PermissionToggles from "@/components/PermissionToggles";
+import { normalizePermissions, permissionLabels } from "@/lib/permissions";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger,
 } from "@/components/ui/dialog";
@@ -36,11 +35,14 @@ function Inner() {
   const { user } = useAuth();
   const isSuper = user?.role === "superadmin";
   const [regOpen, setRegOpen] = useState(false);
-  const [reg, setReg] = useState({ name: "", username: "", password: "", email: "", phone: "", role: "admin" });
+  const EMPTY_REG = { name: "", username: "", password: "", email: "", phone: "", permissions: normalizePermissions(null) };
+  const [reg, setReg] = useState(EMPTY_REG);
   const [tempPwd, setTempPwd] = useState("");
   const [delUser, setDelUser] = useState(null);
   // Kelola kredensial user (khusus Superadmin, boleh untuk akun sendiri)
   const [editUser, setEditUser] = useState(null);
+  const [editTab, setEditTab] = useState("identitas");
+  const openEdit = (u, tab = "identitas") => { setEditTab(tab); setEditUser(u); };
 
   // Pagination lokal per tabel (log aktivitas, audit mutasi, daftar user)
   const [actPage, setActPage] = useState(1);
@@ -87,9 +89,9 @@ function Inner() {
   const doRegister = async () => {
     if (!reg.name || !reg.username || !reg.password) { toast.error("Lengkapi semua field."); return; }
     try {
-      await api.post("/users", reg);
+      await api.post("/users", { ...reg, role: "admin" });
       toast.success("User berhasil didaftarkan.");
-      setRegOpen(false); setReg({ name: "", username: "", password: "", email: "", phone: "", role: "admin" });
+      setRegOpen(false); setReg(EMPTY_REG);
       loadLogs();
     } catch (e) { toast.error(apiError(e)); }
   };
@@ -114,8 +116,8 @@ function Inner() {
     <PageContainer
       fillHeight
       testid="logs-users-page"
-      pageTitle="Log & Manajemen User"
-      pageDescription="Aktivitas login, audit mutasi, dan pengelolaan user."
+      pageTitle={isSuper ? "Log & Manajemen User" : "Log Aktivitas"}
+      pageDescription={isSuper ? "Aktivitas login, audit mutasi, dan pengelolaan user & hak akses." : "Aktivitas login dan audit mutasi."}
     >
 
       <Tabs defaultValue="activity" className="md:flex md:min-h-0 md:flex-1 md:flex-col">
@@ -205,22 +207,18 @@ function Inner() {
                   <DialogTrigger asChild>
                     <Button className="gap-2" data-testid="register-user-button"><UserPlus className="h-4 w-4" /> Registrasi User</Button>
                   </DialogTrigger>
-                  <DialogContent data-testid="register-dialog">
+                  <DialogContent data-testid="register-dialog" className="max-h-[92vh] overflow-y-auto sm:max-w-lg">
                     <DialogHeader><DialogTitle>Registrasi User Baru</DialogTitle></DialogHeader>
-                    <div className="space-y-3">
+                    <div className="max-h-[65vh] space-y-3 overflow-y-auto pr-1">
                       <div className="space-y-1.5"><Label>Nama</Label><Input value={reg.name} data-testid="reg-name" onChange={(e) => setReg({ ...reg, name: e.target.value })} /></div>
                       <div className="space-y-1.5"><Label>Username</Label><Input value={reg.username} data-testid="reg-username" onChange={(e) => setReg({ ...reg, username: e.target.value })} /></div>
                       <div className="space-y-1.5"><Label>Password</Label><Input type="password" value={reg.password} data-testid="reg-password" onChange={(e) => setReg({ ...reg, password: e.target.value })} /></div>
                       <div className="space-y-1.5"><Label>Email <span className="text-muted-foreground">(opsional)</span></Label><Input type="email" placeholder="nama@email.com" value={reg.email} data-testid="reg-email" onChange={(e) => setReg({ ...reg, email: e.target.value })} /></div>
                       <div className="space-y-1.5"><Label>No. Telepon <span className="text-muted-foreground">(opsional)</span></Label><Input placeholder="08xxxxxxxxxx" value={reg.phone} data-testid="reg-phone" onChange={(e) => setReg({ ...reg, phone: e.target.value })} /></div>
-                      <div className="space-y-1.5"><Label>Role</Label>
-                        <Select value={reg.role} onValueChange={(v) => setReg({ ...reg, role: v })}>
-                          <SelectTrigger data-testid="reg-role"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="admin">Admin/PIC</SelectItem>
-                            <SelectItem value="superadmin">Superadmin</SelectItem>
-                          </SelectContent>
-                        </Select>
+                      <div className="space-y-1.5 pt-1">
+                        <Label className="flex items-center gap-1.5"><SlidersHorizontal className="h-3.5 w-3.5" /> Hak Akses Tools</Label>
+                        <p className="text-xs text-muted-foreground">Nyalakan tools yang boleh dibuka user ini. Bisa diubah kapan saja.</p>
+                        <PermissionToggles value={reg.permissions} onChange={(p) => setReg({ ...reg, permissions: p })} testidPrefix="reg-perm" />
                       </div>
                     </div>
                     <DialogFooter>
@@ -233,7 +231,7 @@ function Inner() {
               <div className="max-h-[55vh] overflow-auto md:max-h-none md:min-h-0 md:flex-1">
                 <Table>
                   <TableHeader className="sticky top-0 z-10 bg-card">
-                    <TableRow><TableHead>Nama</TableHead><TableHead>Username</TableHead><TableHead>Email</TableHead><TableHead>Role</TableHead>
+                    <TableRow><TableHead>Nama</TableHead><TableHead>Username</TableHead><TableHead>Hak Akses</TableHead>
                       <TableHead>Status</TableHead><TableHead className="text-right">Aksi</TableHead></TableRow>
                   </TableHeader>
                   <TableBody data-testid="users-table">
@@ -241,12 +239,22 @@ function Inner() {
                       <TableRow key={u.id}>
                         <TableCell className="font-medium">{u.name}</TableCell>
                         <TableCell>{u.username}</TableCell>
-                        <TableCell className="text-muted-foreground">{u.email || "-"}</TableCell>
-                        <TableCell>{u.role === "superadmin" ? <Badge className="gap-1"><ShieldCheck className="h-3 w-3" /> Superadmin</Badge> : <Badge variant="outline">Admin/PIC</Badge>}</TableCell>
+                        <TableCell data-testid={`perms-${u.id}`}>
+                          {u.role === "superadmin" ? (
+                            <Badge className="gap-1"><ShieldCheck className="h-3 w-3" /> Superadmin · semua tools</Badge>
+                          ) : (
+                            <div className="flex flex-wrap gap-1">
+                              {permissionLabels(u.permissions).length
+                                ? permissionLabels(u.permissions).map((l) => <Badge key={l} variant="outline" className="text-[10px]">{l}</Badge>)
+                                : <Badge variant="secondary" className="text-[10px] text-muted-foreground">Belum ada akses</Badge>}
+                            </div>
+                          )}
+                        </TableCell>
                         <TableCell>{u.active !== false ? <Badge className="bg-emerald-500/15 text-emerald-600">Aktif</Badge> : <Badge variant="destructive">Nonaktif</Badge>}</TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
-                            <Button size="icon" variant="ghost" title="Kelola kredensial" data-testid={`changepwd-${u.id}`} onClick={() => setEditUser(u)}><UserCog className="h-4 w-4" /></Button>
+                            <Button size="icon" variant="ghost" title="Atur hak akses" data-testid={`perm-${u.id}`} onClick={() => openEdit(u, "akses")}><SlidersHorizontal className="h-4 w-4" /></Button>
+                            <Button size="icon" variant="ghost" title="Kelola user" data-testid={`changepwd-${u.id}`} onClick={() => openEdit(u, "identitas")}><UserCog className="h-4 w-4" /></Button>
                             <Button size="icon" variant="ghost" disabled={u.id === user.id} data-testid={`toggle-${u.id}`} onClick={() => toggleUser(u)}><Power className="h-4 w-4" /></Button>
                             <Button size="icon" variant="ghost" disabled={u.id === user.id} data-testid={`deluser-${u.id}`} onClick={() => setDelUser(u)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                           </div>
@@ -275,7 +283,7 @@ function Inner() {
                 <KeyRound className="h-4 w-4 text-primary" />
                 <h3 className="font-display text-lg font-bold">Ubah Password Akses Sementara</h3>
               </div>
-              <p className="mb-3 text-sm text-muted-foreground">Password ini dipakai Admin/PIC untuk membuka section terproteksi. Hanya Superadmin yang bisa mengubahnya.</p>
+              <p className="mb-3 text-sm text-muted-foreground">Lapisan tambahan: user non-superadmin yang sudah diberi akses Laporan Detail / Log / Tutup Tahun tetap harus memasukkan password ini saat membuka section tersebut. Hanya Superadmin yang bisa mengubahnya.</p>
               <div className="flex flex-wrap items-end gap-3">
                 <div className="space-y-1.5">
                   <Label>Password Baru</Label>
@@ -290,6 +298,7 @@ function Inner() {
 
       <UserEditDialog
         user={editUser}
+        defaultTab={editTab}
         currentUserId={user?.id}
         onOpenChange={(o) => !o && setEditUser(null)}
         onSaved={loadLogs}

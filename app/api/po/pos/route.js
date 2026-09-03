@@ -1,5 +1,5 @@
 import { handle, json, readJson, HttpError, qp } from "@/server/http";
-import { requireAuth } from "@/server/auth";
+import { requirePerm } from "@/server/auth";
 import { nowIso } from "@/server/db";
 import { listPos, findPoByNumber, insertPo } from "@/server/po/repo";
 import { enrichPo, filterPos } from "@/server/po/stages";
@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export const GET = handle(async (req) => {
-  await requireAuth(req);
+  await requirePerm(req, "po");
   const search = qp(req, "search");
   const bucket = qp(req, "bucket");
   const month = qp(req, "month");
@@ -19,7 +19,7 @@ export const GET = handle(async (req) => {
 });
 
 export const POST = handle(async (req) => {
-  const current = await requireAuth(req);
+  const current = await requirePerm(req, "po");
   const body = await readJson(req);
   const poNumber = String(body.po_number || "").trim();
   const clientName = String(body.client_name || "").trim();

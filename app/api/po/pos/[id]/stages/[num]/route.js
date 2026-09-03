@@ -1,5 +1,5 @@
 import { handle, json, readJson, HttpError } from "@/server/http";
-import { requireAuth } from "@/server/auth";
+import { requirePerm } from "@/server/auth";
 import { nowIso } from "@/server/db";
 import { getPo, updatePo } from "@/server/po/repo";
 import { enrichPo, isStageDone, STAGE_NAMES } from "@/server/po/stages";
@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 // POST /api/po/pos/[id]/stages/[num]  — update stage_data[num]
 export const POST = handle(async (req, { params }) => {
-  const current = await requireAuth(req);
+  const current = await requirePerm(req, "po");
   const { id, num } = await params;
   const stageNum = Number(num);
   if (!(stageNum >= 1 && stageNum <= 11)) throw new HttpError(400, "Nomor tahap tidak valid");

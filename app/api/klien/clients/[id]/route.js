@@ -1,12 +1,12 @@
 import { handle, json, readJson, HttpError } from "@/server/http";
-import { requireAuth } from "@/server/auth";
+import { requirePerm } from "@/server/auth";
 import { getKlienOr404, findKlienByNama, updateKlien, deleteKlienCascade } from "@/server/klien";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export const PUT = handle(async (req, { params }) => {
-  await requireAuth(req);
+  await requirePerm(req, "klien");
   const { id } = await params;
   const body = await readJson(req);
   const nama = String(body?.nama ?? "").trim();
@@ -21,7 +21,7 @@ export const PUT = handle(async (req, { params }) => {
 });
 
 export const DELETE = handle(async (req, { params }) => {
-  await requireAuth(req);
+  await requirePerm(req, "klien");
   const { id } = await params;
   await getKlienOr404(id);
   const deleted = await deleteKlienCascade(id);

@@ -2,20 +2,26 @@ import { handle, json, readJson, HttpError } from "@/server/http";
 import { getCurrentUser, hashPassword, verifyPassword, logAudit } from "@/server/auth";
 import { nowIso } from "@/server/db";
 import { findUserById, updateUser } from "@/server/users";
+import { effectivePermissions } from "@/lib/permissions";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export const GET = handle(async (req) => {
-  const u = await getCurrentUser(req);
-  return json({
+function publicUser(u) {
+  return {
     id: u.id,
     name: u.name,
     username: u.username,
     email: u.email || "",
     phone: u.phone || "",
     role: u.role,
-  });
+    permissions: effectivePermissions(u),
+  };
+}
+
+export const GET = handle(async (req) => {
+  const u = await getCurrentUser(req);
+  return json(publicUser(u));
 });
 
 /**
@@ -67,15 +73,5 @@ export const PATCH = handle(async (req) => {
     });
   } catch { /* audit gagal tidak menggagalkan aksi utama */ }
 
-  return json({
-    success: true,
-    user: {
-      id: fresh.id,
-      name: fresh.name,
-      username: fresh.username,
-      email: fresh.email || "",
-      phone: fresh.phone || "",
-      role: fresh.role,
-    },
-  });
+  return json({ success: true, user: publicUser(fresh) });
 });

@@ -1,5 +1,5 @@
 import { handle, pdfResponse, qp, HttpError } from "@/server/http";
-import { requireSuperadmin } from "@/server/auth";
+import { requirePerm } from "@/server/auth";
 import {
   sortedInvoices, getInvoiceOr404, enrich,
   computeSummary, computeBreakdown, computeMonthly,
@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 const d = (v) => (v ? String(v).slice(0, 10).split("-").reverse().join("/") : null);
 
 export const GET = handle(async (req) => {
-  await requireSuperadmin(req);
+  await requirePerm(req, "tempo");
   const kind = qp(req, "kind") || "all";
   const stamp = new Date().toISOString().slice(0, 10);
 

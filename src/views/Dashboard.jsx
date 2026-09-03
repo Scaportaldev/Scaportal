@@ -30,7 +30,7 @@ const trxBadge = (t) => {
 };
 
 export default function Dashboard() {
-  const { user } = useAuth();
+  const { perms } = useAuth();
   // Cache react-query: dashboard tampil instan dari cache, refresh di background.
   const { data } = useQuery({
     queryKey: ["dashboard"],
@@ -40,7 +40,7 @@ export default function Dashboard() {
 
   if (!data) return <PageContainer isLoading testid="stok-dashboard-loading" />;
 
-  const isSuper = user?.role === "superadmin";
+  const canNominal = perms.canStokDetail;
 
   return (
     <PageContainer
@@ -56,12 +56,12 @@ export default function Dashboard() {
           value={`${formatNumber(data.total_ink_stock)} Kg`} />
         <StatCard testid="card-mutations-today" icon={Activity} accent="sky" label="Mutasi Hari Ini"
           value={`${data.mutations_today} transaksi`} sub="Kertas & tinta" />
-        {isSuper ? (
+        {canNominal ? (
           <StatCard testid="card-nominal-total" icon={Wallet} accent="emerald" label="Total Nominal Stok"
             value={formatRupiah(data.nominal_total)} sub={`Kertas ${formatRupiah(data.nominal_paper)} • Tinta ${formatRupiah(data.nominal_ink)} • Lain ${formatRupiah(data.nominal_other || 0)}`} />
         ) : (
           <StatCard testid="card-nominal-hidden" icon={Wallet} accent="emerald" label="Total Nominal Stok"
-            value="Terkunci" sub="Buka via Laporan Detail" />
+            value="Terkunci" sub="Butuh akses Laporan Detail" />
         )}
       </div>
 

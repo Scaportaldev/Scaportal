@@ -73,7 +73,7 @@ function DiffBadge({ diff, pct }) {
 }
 
 function Inner() {
-  const { user } = useAuth();
+  const { user, perms } = useAuth();
   const isSuper = user?.role === "superadmin";
   const [period, setPeriod] = useState({ start: "", end: "", label: "" });
   const [data, setData] = useState(null);
@@ -126,7 +126,7 @@ function Inner() {
       testid="detail-report-page"
       pageTitle="Laporan Detail"
       pageDescription={`Nominal, grafik, perbandingan periode & PPN. ${period.label}`}
-      pageHeaderAction={(
+      pageHeaderAction={perms.canStokPdf && (
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" className="gap-2" data-testid="pdf-stock-nominal-button" onClick={() => openPdf("nominal")}>
             <FileDown className="h-4 w-4" /> Stok Keseluruhan

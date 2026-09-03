@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export const POST = handle(async (req) => {
-  const current = await requireSectionAccess(req);
+  const current = await requireSectionAccess(req, "stok_tutup_tahun");
   const [r1, r2, r3] = await Promise.all([
     deleteAllMutations("paper"),
     deleteAllMutations("ink"),

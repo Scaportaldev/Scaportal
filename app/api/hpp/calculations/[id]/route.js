@@ -1,5 +1,5 @@
 import { handle, json, readJson, HttpError } from "@/server/http";
-import { requireSuperadmin } from "@/server/auth";
+import { requirePerm } from "@/server/auth";
 import { nowIso } from "@/server/db";
 import { getCalculation, updateCalculation, deleteCalculation } from "@/server/hpp";
 
@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export const GET = handle(async (req, { params }) => {
-  await requireSuperadmin(req);
+  await requirePerm(req, "hpp");
   const { id } = await params;
   const doc = await getCalculation(id);
   if (!doc) throw new HttpError(404, "Perhitungan tidak ditemukan");
@@ -15,7 +15,7 @@ export const GET = handle(async (req, { params }) => {
 });
 
 export const PUT = handle(async (req, { params }) => {
-  await requireSuperadmin(req);
+  await requirePerm(req, "hpp");
   const { id } = await params;
   const body = await readJson(req);
   const existing = await getCalculation(id);
@@ -33,7 +33,7 @@ export const PUT = handle(async (req, { params }) => {
 });
 
 export const DELETE = handle(async (req, { params }) => {
-  await requireSuperadmin(req);
+  await requirePerm(req, "hpp");
   const { id } = await params;
   const deleted = await deleteCalculation(id);
   if (!deleted) throw new HttpError(404, "Perhitungan tidak ditemukan");
