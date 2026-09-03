@@ -14,7 +14,7 @@ dan **domain sendiri** ber-HTTPS.
 
 1. [Gambaran Arsitektur](#1-gambaran-arsitektur)
 2. [Prasyarat](#2-prasyarat)
-3. [MongoDB Atlas dari Nol](#3-mongodb-atlas-dari-nol)
+3. [Database MariaDB di Coolify](#3-database-mariadb-di-coolify)
 4. [Cloudflare R2 dari Nol](#4-cloudflare-r2-dari-nol)
 5. [Siapkan VPS & Coolify](#5-siapkan-vps--coolify)
 6. [Deploy Aplikasi di Coolify](#6-deploy-aplikasi-di-coolify)
@@ -26,6 +26,7 @@ dan **domain sendiri** ber-HTTPS.
 12. [Checklist Serah Terima ke Client](#12-checklist-serah-terima-ke-client)
 13. [Troubleshooting](#13-troubleshooting)
 14. [Referensi Cepat](#14-referensi-cepat)
+15. [phpMyAdmin di subdomain sendiri](#15-phpmyadmin-di-subdomain-sendiri-contoh-dbscaportalcloud)
 
 ---
 
@@ -49,7 +50,7 @@ dan **domain sendiri** ber-HTTPS.
 | Foto bukti PO | Cloudflare R2 | gratis s/d 10 GB (butuh kartu untuk aktivasi) |
 | Domain + DNS | Cloudflare | gratis (domain beli sendiri) |
 
-Semua konfigurasi rahasia (**MONGO_URL**, **JWT_SECRET**, **R2_\***) diisi di
+Semua konfigurasi rahasia (**DATABASE_URL**, **JWT_SECRET**, **R2_\***) diisi di
 **Coolify → Environment Variables**, **tidak** ditulis di dalam kode/image.
 
 ### 1.1 Catatan Coolify self-hosted & Docker
@@ -98,7 +99,7 @@ Semua variabel di bawah diisi di **Coolify → aplikasi → Environment Variable
 - [ ] **Coolify** sudah terinstal dan dashboard bisa dibuka (`http://IP-VPS:8000`).
       Bila belum: `curl -fsSL https://cdn.coollabs.io/coolify/install.sh | bash`
 - [ ] Akun **GitHub** — repo aplikasi ini (upload isi ZIP ke repo Anda, private boleh).
-- [ ] Akun **MongoDB Atlas** (gratis).
+- [ ] Resource **MariaDB** di Coolify (one-click, bagian 3) — tidak butuh layanan database eksternal.
 - [ ] Akun **Cloudflare** + domain yang nameserver-nya sudah diarahkan ke Cloudflare.
 - [ ] Di komputer lokal: `git` (untuk push repo) — Node.js opsional (hanya untuk seed data contoh).
 
@@ -110,61 +111,25 @@ Semua variabel di bawah diisi di **Coolify → aplikasi → Environment Variable
 
 ## 3. Database MariaDB di Coolify
 
-> Bagian ini menggantikan MongoDB Atlas. Aplikasi sekarang memakai MariaDB.
+> Aplikasi memakai **MariaDB sepenuhnya**. Tidak ada lagi MongoDB/Atlas di kode maupun dependensi.
 
 1. Coolify → Project → **+ New Resource** → **Databases** → **MariaDB** → Create.
-2. Di halaman resource MariaDB: biarkan *Access* = **Private** (aman; aplikasi konek lewat network internal Docker).
-3. Salin **MariaDB URL (internal)** (format `mysql://mariadb:PASSWORD@host:3306/default`) → isi ke env `DATABASE_URL` aplikasi.
-4. (Opsional) Tambah service **phpMyAdmin** (New Resource → Services) untuk melihat tabel:
-   host = nama host internal di URL di atas, user `mariadb`, password = *Normal user password*.
-5. Tabel dibuat otomatis oleh aplikasi saat pertama diakses. Migrasi data lama dari Atlas:
-   buka **Terminal** container aplikasi di Coolify lalu jalankan
-   `MONGO_URL="mongodb+srv://..." MONGO_DB_NAME="laporan_stok_sca" node scripts/migrate_mongo_to_mariadb.mjs`
-   (DATABASE_URL sudah tersedia dari env container).
-
-### 3.x (Arsip) MongoDB Atlas dari Nol — tidak dipakai lagi
-
-### 3.1 Buat akun & cluster
-
-1. Daftar di <https://www.mongodb.com/cloud/atlas/register>.
-2. **Build a Database** → tier **M0 (FREE)**.
-3. Provider **AWS**, region **Singapore (ap-southeast-1)** — paling dekat ke VPS Indonesia/SG.
-4. **Create Deployment**, tunggu 1–3 menit.
-
-### 3.2 Buat Database User
-
-Menu **Database Access** → **Add New Database User**:
-
-| Kolom | Isi |
-| --- | --- |
-| Authentication | Password |
-| Username | mis. `scaadmin` |
-| Password | **Autogenerate Secure Password** → salin & simpan |
-| Role | **Read and write to any database** |
-
-> Hindari password manual berisi `@ : / # %`. Kalau terpaksa, karakter tersebut
-> wajib di-URL-encode di connection string (mis. `@` → `%40`).
-
-### 3.3 Network Access (whitelist IP VPS)
-
-Menu **Network Access** → **Add IP Address**:
-
-- **Disarankan:** masukkan **IP publik VPS** Anda (cek dengan `curl ifconfig.me` di VPS) → Confirm.
-- Alternatif cepat: **ALLOW ACCESS FROM ANYWHERE** (`0.0.0.0/0`). Tetap aman karena
-  butuh username+password, tapi whitelist IP VPS lebih rapat.
-
-> Jika VPS pindah/IP berubah → tambahkan IP baru di sini, kalau tidak aplikasi
-> akan error *Server selection timed out*.
-
-### 3.4 Ambil Connection String
-
-1. **Database** → **Connect** → **Drivers** → salin string:
-   ```
-   mongodb+srv://scaadmin:<db_password>@cluster0.xxxxx.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0
-   ```
-2. Ganti `<db_password>` dengan password asli — **tanda `<` `>` ikut dihapus**.
-3. Ini nilai untuk env **`MONGO_URL`**. Nama database diisi terpisah di **`DB_NAME`**
-   (mis. `laporan_stok_sca`) — database & collection dibuat otomatis oleh aplikasi.
+2. Di halaman resource MariaDB: biarkan *Access* = **Private** (aman; aplikasi konek lewat
+   network internal Docker). *Public port* hanya perlu dinyalakan sementara bila Anda mau
+   konek dari laptop — matikan lagi setelah selesai.
+3. Salin **MariaDB URL (internal)** (format `mysql://mariadb:PASSWORD@host:3306/default`).
+4. **WAJIB:** tempel nilai itu ke aplikasi → **Environment Variables** → key **`DATABASE_URL`**.
+   Bila `DATABASE_URL` kosong, aplikasi jatuh ke `127.0.0.1:3306` → `ECONNREFUSED`,
+   container tidak pernah *healthy*, dan Traefik menjawab **"no available server"**.
+5. Tabel (19 tabel) dan akun superadmin dibuat **otomatis** saat request pertama —
+   tidak perlu import skema manual.
+6. phpMyAdmin untuk melihat/mengelola isi database: lihat **bagian 15**
+   (`https://db.scaportal.cloud`).
+7. Data contoh/dummy (opsional, sekali saja): phpMyAdmin → database `default` → **Import** →
+   unggah `deploy/dummy_data.sql`. Berisi 839 baris (users, mutasi kertas/tinta/lainnya,
+   PO + jadwal + foto, klien, invoice tempo, log).
+   Dump memakai `DROP TABLE` + `CREATE TABLE` → **menimpa** tabel yang ada, jangan dipakai
+   di database yang sudah berisi data produksi.
 
 ---
 
@@ -302,8 +267,7 @@ Tab **Environment Variables** → klik **Developer view** → tempel blok beriku
 (sesuaikan nilainya) → **Save**:
 
 ```
-MONGO_URL=mongodb+srv://scaadmin:PASSWORD@cluster0.xxxxx.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0
-DB_NAME=laporan_stok_sca
+DATABASE_URL=mysql://mariadb:PASSWORD@host-internal-mariadb:3306/default
 JWT_SECRET=<hasil openssl rand -hex 32>
 SUPERADMIN_USERNAME=Jeffsca
 SUPERADMIN_PASSWORD=<password kuat>
@@ -318,8 +282,7 @@ R2_PUBLIC_URL=https://pub-xxxxxxxx.r2.dev
 
 | Name | Wajib? | Keterangan |
 | --- | --- | --- |
-| `MONGO_URL` | ✅ | Bagian 3.4 |
-| `DB_NAME` | ✅ | Ganti nama = database baru yang kosong |
+| `DATABASE_URL` | ✅ | **MariaDB URL (internal)** dari resource MariaDB (bagian 3). Tanpa ini deploy gagal. |
 | `JWT_SECRET` | ✅ | `openssl rand -hex 32` (jalankan di VPS/laptop) |
 | `SUPERADMIN_USERNAME` / `SUPERADMIN_PASSWORD` | disarankan | Default `Jeffsca` / `jeff3131` — **wajib ganti di produksi** |
 | `TEMP_ACCESS_PASSWORD` | disarankan | Password pembuka section terproteksi untuk Admin/PIC |
@@ -328,12 +291,20 @@ R2_PUBLIC_URL=https://pub-xxxxxxxx.r2.dev
 
 > Semua env di atas dibaca saat **runtime** — **jangan** centang *Build Variable*.
 > `PORT`, `HOSTNAME`, `NODE_ENV` sudah diset di Dockerfile, tidak perlu ditambah.
+> Setelah menambah/mengubah env, wajib **Redeploy** (bukan hanya Restart) agar container
+> baru membawa `.env` terbaru.
 
-### 6.4 Health check (opsional tapi disarankan)
+### 6.4 Health check (disarankan)
 
 Tab **Healthcheck** → Enable → Method `GET`, Path `/api/health`, Port `3000`,
-Interval `30`, Timeout `5`, Retries `3`, Start period `30`. Dengan ini Coolify hanya
+Interval `30`, Timeout `5`, Retries `5`, Start period `40`. Dengan ini Coolify hanya
 mengalihkan traffic ke container baru bila sudah benar-benar siap (*zero-downtime*).
+
+> `/api/health` **sengaja tidak menyentuh MariaDB** (hanya membuktikan proses Next.js hidup).
+> Kalau healthcheck ikut mengetes database, satu gangguan DB membuat Coolify menganggap
+> container baru *unhealthy* → rolling back → container lama juga dihapus → domain menjawab
+> **"no available server"**. Untuk memeriksa database, buka `/api/health?deep=1` secara manual
+> (mengembalikan `{"status":"ok","db":"ok"}` atau `{"status":"degraded","db":"error",...}`).
 
 ### 6.5 Deploy
 
@@ -396,33 +367,44 @@ Buka URL tersebut; jika sudah bisa, tutup port 8000: `ufw delete allow 8000/tcp`
 
 ## 8. Verifikasi Setelah Deploy
 
-1. Health: `https://stok.domain-anda.com/api/health` → `{"status":"ok"}`.
-2. Login **Superadmin** (sesuai `SUPERADMIN_USERNAME/PASSWORD`).
-3. Sidebar menampilkan **5 tool**: Stok SCA (Dashboard/Mutasi/Laporan), Kalkulator HPP,
+1. Health: `https://scaportal.cloud/api/health` → `{"status":"ok"}`.
+2. Health + database: `https://scaportal.cloud/api/health?deep=1` → `{"status":"ok","db":"ok"}`.
+3. Login **Superadmin** (sesuai `SUPERADMIN_USERNAME/PASSWORD`).
+4. Sidebar menampilkan **5 tool**: Stok SCA (Dashboard/Mutasi/Laporan), Kalkulator HPP,
    PO Tracker, Stok Klien, Jatuh Tempo Klien.
-4. **PO Tracker** → buka salah satu PO → upload foto tahap → foto tampil (memastikan R2 OK).
-5. Buat akun **Admin/PIC** dari **Log & User** → login dengan akun itu → pastikan:
+5. **PO Tracker** → buka salah satu PO → upload foto tahap → foto tampil (memastikan R2 OK).
+6. Buat akun **Admin/PIC** dari **Log & User** → login dengan akun itu → pastikan:
    hanya melihat **Stok Klien** (nominal rupiah *Terkunci*), tanpa HPP & Jatuh Tempo.
-6. Atlas → **Browse Collections** → database `DB_NAME` berisi `users`, `settings`, dst.
+7. phpMyAdmin (`https://db.scaportal.cloud`) → database `default` → harus ada **19 tabel**
+   (`users`, `settings`, `paper_mutations`, `pos`, `klien_*`, `tempo_*`, dst).
 
 ---
 
 ## 9. Apa yang Terjadi Saat First Deploy
 
-MongoDB **schemaless** — tidak perlu membuat tabel manual. Pada request API pertama,
+Skema dibuat **otomatis** — tidak perlu import SQL manual. Pada request API pertama,
 aplikasi menjalankan auto-init (`src/server/init.js`), sekali per start container
 dan idempotent:
 
-- Membuat **index**: `users.username` (unique), index `year` mutasi, index tanggal log.
+- Menjalankan seluruh DDL di `src/server/schema.js`: **19 tabel** `CREATE TABLE IF NOT EXISTS`
+  (InnoDB, utf8mb4, primary key CHAR(36) UUID, foreign key ON DELETE CASCADE).
 - **Seed superadmin** sesuai `SUPERADMIN_USERNAME` / `SUPERADMIN_PASSWORD`.
 - **Seed password akses sementara** sesuai `TEMP_ACCESS_PASSWORD`.
+- **Seed opsi TOP** Jatuh Tempo Klien (`tempo_top_options`).
 
 Mengubah `SUPERADMIN_PASSWORD` lalu **Redeploy** akan menyinkronkan password superadmin
 di database. Mengubah `SUPERADMIN_USERNAME` membuat superadmin **baru** (yang lama tetap ada).
 
-Collection tool baru (`klien_clients`, `klien_pos`, `klien_items`, `klien_mutations`,
-`tempo_invoices`, `tempo_top_options`) terbentuk otomatis pada transaksi pertama —
-**terpisah** dari koleksi Stok SCA / HPP / PO Tracker.
+Peta tabel per modul:
+
+| Modul | Tabel |
+| --- | --- |
+| Akun & sistem | `users`, `settings`, `activity_logs`, `audit_logs` |
+| Stok SCA | `paper_mutations`, `ink_mutations`, `other_mutations` |
+| Kalkulator HPP | `hpp_calculations` |
+| PO Tracker | `pos` ⟵ `po_logs`, `po_schedules`, `po_files` |
+| Stok Klien | `klien_clients` ⟵ `klien_pos` ⟵ `klien_items` ⟵ `klien_mutations` |
+| Jatuh Tempo | `tempo_invoices` ⟵ `tempo_installments`, `tempo_top_options` |
 
 ---
 
@@ -431,52 +413,59 @@ Collection tool baru (`klien_clients`, `klien_pos`, `klien_items`, `klien_mutati
 | Situasi | Yang dilakukan |
 | --- | --- |
 | Ada perubahan kode | `git push` ke `main` → Coolify (GitHub App) auto-build & deploy. Tanpa GitHub App: klik **Deploy** manual |
-| Ubah env variable | Edit di tab Environment Variables → **Save** → **Restart** (env baru tidak aktif tanpa restart) |
+| Ubah env variable | Edit di tab Environment Variables → **Save** → **Redeploy** (Restart saja tidak selalu memuat `.env` baru) |
 | Rollback | Tab **Deployments** → pilih deployment lama yang sukses → **Redeploy** |
-| Lihat log runtime | Tab **Logs** (container) — error MongoDB/R2 muncul di sini |
+| Lihat log runtime | Tab **Logs** (container) — error MariaDB/R2 muncul di sini |
 | Masuk ke container | Tab **Terminal** (untuk debugging) |
 
 ---
 
 ## 11. Backup, Restore & Data Contoh
 
-### 11.1 Backup database (Atlas)
+### 11.1 Backup database (MariaDB di Coolify)
 
-- **Otomatis:** M0 tidak punya snapshot otomatis. Upgrade ke M2/M10 bila butuh.
-- **Manual (dari laptop/VPS):**
+- **Otomatis (disarankan):** resource MariaDB → tab **Backups** → tambah jadwal
+  (mis. harian `0 3 * * *`), simpan lokal atau ke S3/R2. Bisa juga **Import Backup**
+  untuk restore.
+- **Manual dari Terminal** resource MariaDB:
   ```bash
-  mongodump --uri="mongodb+srv://scaadmin:PASSWORD@cluster0.xxxxx.mongodb.net/laporan_stok_sca" --out=backup-$(date +%F)
-  mongorestore --uri="..." backup-2025-01-01/
+  mariadb-dump -u mariadb -p --single-transaction --no-tablespaces default > backup-$(date +%F).sql
+  mariadb -u mariadb -p default < backup-2026-01-01.sql
   ```
-  (`mongodb-database-tools` dari <https://www.mongodb.com/try/download/database-tools>)
+- **Manual dari phpMyAdmin:** database `default` → tab **Export** (format SQL) untuk backup,
+  tab **Import** untuk restore.
 - Backup R2: **Cloudflare R2 → bucket → Objects** (unduh) atau `rclone` dengan endpoint S3.
 
-### 11.2 Data contoh 2 tool klien (opsional, dari laptop)
+### 11.2 Data contoh / dummy
 
-```bash
-cp .env.example .env            # isi MONGO_URL & DB_NAME yang sama dengan produksi
-yarn install
-node scripts/seed_klien_tempo.mjs           # tambah data contoh (aman diulang)
-node scripts/seed_klien_tempo.mjs --wipe    # kosongkan lalu isi ulang
-```
+Repo menyertakan `deploy/dummy_data.sql` (839 baris: users, mutasi kertas/tinta/lainnya,
+PO + jadwal + foto, klien + item + mutasi, invoice tempo + cicilan, activity & audit log).
 
-Script **hanya** menyentuh koleksi `klien_*` dan `tempo_*`. Untuk serah terima ke
-client, **jangan** jalankan seed ini (atau gunakan `DB_NAME` berbeda).
+- phpMyAdmin → database `default` → **Import** → unggah `deploy/dummy_data.sql` → Import.
+- atau Terminal resource MariaDB: `mariadb -u mariadb -p default < deploy/dummy_data.sql`
+
+Dump memakai `DROP TABLE IF EXISTS` + `CREATE TABLE`, jadi **menimpa** tabel yang ada.
+Untuk serah terima ke client, **jangan** impor file ini — biarkan aplikasi membuat
+database kosong dengan superadmin saja.
 
 ---
 
 ## 12. Checklist Serah Terima ke Client
 
-- [ ] `MONGO_URL` menunjuk database **fresh** (cluster baru atau `DB_NAME` baru).
+- [ ] `DATABASE_URL` menunjuk database **fresh** (resource MariaDB baru atau database kosong).
+- [ ] `deploy/dummy_data.sql` **tidak** diimpor (dashboard bersih, 0 data).
 - [ ] `SUPERADMIN_USERNAME` & `SUPERADMIN_PASSWORD` final & kuat (bukan default).
 - [ ] `JWT_SECRET` baru (bukan bekas masa testing).
 - [ ] `TEMP_ACCESS_PASSWORD` diganti dari default.
 - [ ] Token R2 dibatasi ke bucket `sca-po-photos`; kredensial lama (jika pernah bocor) di-**rotate**:
-      Cloudflare → Manage R2 API Tokens → *Roll* / hapus & buat baru → update env → Restart.
-- [ ] Password Atlas di-rotate bila pernah dibagikan (Database Access → Edit → Autogenerate).
-- [ ] Domain `https://stok...` aktif, gembok hijau, `/api/health` OK.
-- [ ] Login OK, dashboard bersih (0 data) untuk database fresh.
+      Cloudflare → Manage R2 API Tokens → *Roll* / hapus & buat baru → update env → Redeploy.
+- [ ] Password MariaDB kuat (pakai yang digenerate Coolify), *Access* kembali ke **Private**
+      (public port dimatikan).
+- [ ] Backup terjadwal MariaDB aktif di Coolify.
+- [ ] Domain `https://scaportal.cloud` aktif, gembok hijau, `/api/health?deep=1` OK.
 - [ ] Akun **Admin/PIC** untuk staf client dibuat lewat **Log & User**.
+- [ ] phpMyAdmin (`db.scaportal.cloud`) dibatasi (Cloudflare Access / IP allowlist) atau
+      dimatikan setelah setup.
 - [ ] Port 8000 ditutup setelah dashboard Coolify punya domain sendiri.
 - [ ] Akun Coolify admin memakai password kuat (+ 2FA di Profile bila tersedia).
 
@@ -488,17 +477,21 @@ client, **jangan** jalankan seed ini (atau gunakan `DB_NAME` berbeda).
 | --- | --- | --- |
 | Build gagal: `yarn install --frozen-lockfile` error | `yarn.lock` tidak sinkron dengan `package.json` | Jalankan `yarn install` lokal, commit `yarn.lock` baru, push |
 | Build gagal: *JavaScript heap out of memory* | RAM VPS < 2 GB | Tambah swap 2 GB (`fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile`) atau upgrade VPS |
-| Container terus restart / *unhealthy* | Env `MONGO_URL` salah / Atlas belum whitelist IP | Cek tab **Logs**; perbaiki env → Restart. Pastikan IP VPS ada di Atlas Network Access |
-| `bad auth : authentication failed` | User/password DB salah, `<db_password>` belum diganti, karakter spesial belum di-encode | Atlas → Database Access → Edit user → Autogenerate → update `MONGO_URL` → Restart |
-| `Server selection timed out` | Network Access Atlas belum dibuka untuk IP VPS | Tambah IP VPS atau `0.0.0.0/0` |
+| Traefik: **`no available server`** | Tidak ada container sehat — biasanya deploy terakhir *rolling back* | Cek **Deployments** → log; penyebab tersering `DATABASE_URL` belum diisi (lihat baris berikut) |
+| Log: `[db] DATABASE_URL belum diset` + `connect ECONNREFUSED 127.0.0.1:3306` | Env `DATABASE_URL` tidak ada di aplikasi | Isi `DATABASE_URL` = *MariaDB URL (internal)* → **Redeploy** |
+| `getaddrinfo ENOTFOUND <host>` | Host internal MariaDB tidak bisa di-resolve (beda project/network Coolify) | Taruh app & MariaDB di project yang sama, atau centang *Connect To Predefined Network* |
+| `ER_ACCESS_DENIED_ERROR` | User/password di `DATABASE_URL` salah, atau karakter spesial belum di-URL-encode | Salin ulang **MariaDB URL (internal)** apa adanya → Redeploy |
+| `ER_BAD_DB_ERROR: Unknown database` | Nama database di akhir URL salah (default `default`) | Perbaiki bagian setelah `:3306/` |
+| Container *unhealthy* padahal app hidup | Healthcheck menembak path/port salah | Path `/api/health`, Port `3000`, Start period ≥ 40 s |
 | Domain tidak bisa dibuka / *404 page not found* dari Traefik | DNS belum mengarah ke VPS, atau Domains di Coolify belum sesuai | `nslookup domain` → harus IP VPS; pastikan Domains berformat `https://...` → Redeploy |
 | SSL tidak terbit (*ERR_SSL_PROTOCOL_ERROR*) | Port 80 tertutup, atau DNS masih Proxied saat penerbitan pertama | Buka port 80/443 di ufw & panel VPS; set DNS **DNS only** dulu → Restart app |
 | *Too many redirects* | Cloudflare SSL mode **Flexible** | Ubah ke **Full (strict)** |
-| Upload foto PO gagal: `R2 config: ... belum diset` | Salah satu env `R2_*` kosong | Lengkapi env → Restart |
+| Upload foto PO gagal: `R2 config: ... belum diset` | Salah satu env `R2_*` kosong | Lengkapi env → Redeploy |
 | Upload sukses tapi foto tidak tampil (403/404) | Public access bucket belum aktif, atau `R2_PUBLIC_URL` salah | Bucket → Settings → Public access → Allow (r2.dev) atau Connect Domain; pastikan URL tanpa `/` di akhir |
 | Upload foto gagal `AccessDenied` | Token R2 tidak punya izin Write / salah bucket | Buat token baru **Object Read & Write** untuk bucket `sca-po-photos` |
-| Login gagal padahal `MONGO_URL` benar | Kredensial tidak sesuai env, atau env diubah tanpa restart | Samakan dengan `SUPERADMIN_*` → **Restart** |
-| Data dummy masih terlihat | Masih memakai `DB_NAME` lama | Ganti `DB_NAME` (mis. `laporan_stok_sca_prod`) → Restart, atau drop database lama di Atlas |
+| Login gagal padahal DB terhubung | Kredensial tidak sesuai env, atau env diubah tanpa redeploy | Samakan dengan `SUPERADMIN_*` → **Redeploy** |
+| Data dummy masih terlihat | `deploy/dummy_data.sql` pernah diimpor | phpMyAdmin → drop database `default` → buat ulang → Redeploy app (tabel + superadmin dibuat otomatis) |
+| phpMyAdmin: *mysqli::real_connect(): php_network_getaddresses* | `PMA_HOST` salah / beda network | Isi `PMA_HOST` dengan host internal MariaDB, pastikan satu project |
 | Coolify dashboard tidak bisa dibuka setelah set domain | DNS `coolify` belum ada / port 8000 sudah ditutup | Buat A record `coolify` → IP VPS; sementara buka lagi `ufw allow 8000/tcp` |
 
 Log runtime container: Coolify → aplikasi → **Logs**. Log build: **Deployments** → klik deployment.
@@ -508,23 +501,31 @@ Log runtime container: Coolify → aplikasi → **Logs**. Log build: **Deploymen
 ## 14. Referensi Cepat
 
 ```bash
-# Format MONGO_URL yang benar (tanpa < >, tanpa spasi):
-mongodb+srv://USER:PASSWORD@cluster0.xxxxx.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0
+# Format DATABASE_URL yang benar (salin dari "MariaDB URL (internal)" di Coolify):
+mysql://mariadb:PASSWORD@host-internal-mariadb:3306/default
 
 # Generate JWT_SECRET:
 openssl rand -hex 32
 
-# IP publik VPS (untuk whitelist Atlas & DNS):
+# IP publik VPS (untuk DNS):
 curl ifconfig.me
 
 # Tes kesehatan setelah deploy:
-curl https://stok.domain-anda.com/api/health
+curl https://scaportal.cloud/api/health
+curl https://scaportal.cloud/api/health?deep=1
+
+# Cek isi database dari Terminal resource MariaDB di Coolify:
+mariadb -u mariadb -p -e "USE \`default\`; SHOW TABLES; SELECT username, role FROM users;"
+
+# Impor data dummy:
+mariadb -u mariadb -p default < deploy/dummy_data.sql
 
 # Build & jalankan image secara manual di VPS (tanpa Coolify, untuk debugging):
 docker build -t sca-tools .
 docker run -d --name sca-tools -p 3000:3000 --env-file .env sca-tools
 curl http://localhost:3000/api/health
 ```
+
 
 Struktur env lengkap: lihat [`.env.example`](./.env.example). Dokumentasi fitur & API: [`README.md`](./README.md).
 
@@ -547,6 +548,13 @@ Struktur env lengkap: lihat [`.env.example`](./.env.example). Dokumentasi fitur 
    (bila beda project: di resource MariaDB centang *Connect To Predefined Network* atau pakai Public Access + IP VPS).
 6. Login phpMyAdmin: user `mariadb`, password = *Normal user password* dari resource MariaDB. Database `default`
    berisi 19 tabel aplikasi (`users`, `paper_mutations`, `pos`, `klien_*`, `tempo_*`, dst.).
+7. (Opsional) Impor data contoh: pilih database `default` → tab **Import** → unggah
+   `deploy/dummy_data.sql` → **Import**. Untuk backup: tab **Export** → format **SQL**.
+
+Alternatif tanpa katalog: **+ New Resource → Docker Compose** lalu tempel isi
+[`deploy/phpmyadmin.compose.yml`](./deploy/phpmyadmin.compose.yml) (sudah lengkap dengan
+`UPLOAD_LIMIT`, `MEMORY_LIMIT`, dan healthcheck).
 
 > Keamanan: phpMyAdmin memberi akses penuh ke database. Gunakan password MariaDB yang kuat, dan bila perlu batasi
-> akses lewat Cloudflare Access / IP allowlist di Traefik.
+> akses lewat Cloudflare Access / IP allowlist di Traefik. Setelah selesai setup, service ini boleh di-**Stop**
+> dan dinyalakan hanya saat dibutuhkan.

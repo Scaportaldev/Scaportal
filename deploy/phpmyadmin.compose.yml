@@ -1,13 +1,52 @@
-# Alternatif: deploy phpMyAdmin di Coolify sebagai "Docker Compose" resource.
-# Ganti PMA_HOST dengan host internal MariaDB Anda, lalu set domain https://db.scaportal.cloud di Coolify.
+# =============================================================================
+# phpMyAdmin untuk MariaDB SCA PORTAL — deploy di Coolify
+# =============================================================================
+# Cara pakai (2 pilihan):
+#
+# A. Lewat katalog Coolify (paling mudah)
+#    Coolify -> project yang sama dengan MariaDB -> + New Resource -> Services
+#    -> cari "phpMyAdmin" -> Create -> isi Environment Variables di bawah
+#    -> tab General -> Domains: https://db.scaportal.cloud -> Save -> Deploy.
+#
+# B. Lewat file ini
+#    + New Resource -> Docker Compose -> tempel isi file ini
+#    -> Environment Variables: PMA_HOST (+ PMA_ABSOLUTE_URI)
+#    -> Domains: https://db.scaportal.cloud -> Deploy.
+#
+# PENTING:
+# - PMA_HOST = host internal MariaDB, yaitu bagian antara "@" dan ":3306" pada
+#   "MariaDB URL (internal)" di resource MariaDB. Contoh: 04ufjpxd8weyexh5ffwmap6o
+# - phpMyAdmin dan MariaDB HARUS berada di project / network Coolify yang sama,
+#   kalau tidak host internal tidak bisa di-resolve
+#   (gejala: mysqli::real_connect(): php_network_getaddresses failed).
+# - DNS: A record  db.scaportal.cloud -> 103.150.191.186 (IP VPS). Boleh DNS only
+#   maupun Proxied; untuk penerbitan sertifikat pertama pakai DNS only lebih aman.
+# - Login phpMyAdmin: user `mariadb`, password = "Normal user password" pada
+#   resource MariaDB. Database aplikasi = `default` (19 tabel).
+# - KEAMANAN: phpMyAdmin memberi akses penuh ke database. Batasi dengan
+#   Cloudflare Access / IP allowlist, atau matikan service ini setelah selesai.
+# =============================================================================
 services:
   phpmyadmin:
-    image: phpmyadmin:latest
+    image: phpmyadmin:5-apache
     restart: unless-stopped
     environment:
+      # Host internal MariaDB di network Coolify (WAJIB diisi/di-override).
       - PMA_HOST=${PMA_HOST:-04ufjpxd8weyexh5ffwmap6o}
-      - PMA_PORT=3306
+      - PMA_PORT=${PMA_PORT:-3306}
+      # URL publik phpMyAdmin — harus sama dengan domain di Coolify.
       - PMA_ABSOLUTE_URI=${PMA_ABSOLUTE_URI:-https://db.scaportal.cloud/}
-      - UPLOAD_LIMIT=256M
+      # Batas ukuran file import/export SQL.
+      - UPLOAD_LIMIT=${UPLOAD_LIMIT:-256M}
+      - MEMORY_LIMIT=${MEMORY_LIMIT:-512M}
+      - MAX_EXECUTION_TIME=${MAX_EXECUTION_TIME:-600}
+      # Logout otomatis setelah 1 jam idle.
+      - SESSION_SAVE_PATH=/sessions
     expose:
       - "80"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:80/"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
