@@ -6,8 +6,13 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 
-// onChange receives { start, end, label }
-export default function PeriodFilter({ onChange }) {
+// onChange menerima { start, end, label }
+//
+// `asFields`: kalau true, komponen mengembalikan field-nya saja tanpa wrapper
+// layout, sehingga induknya bisa menata semua filter dalam SATU grid. Ini
+// dipakai di halaman Mutasi supaya di HP kolom-kolomnya sejajar rapi, bukan
+// membungkus di titik acak seperti pada flex-wrap dengan lebar tetap.
+export default function PeriodFilter({ onChange, asFields = false }) {
   const year = new Date().getFullYear();
   const [mode, setMode] = useState("full");
   const [month, setMonth] = useState(String(new Date().getMonth() + 1));
@@ -31,15 +36,15 @@ export default function PeriodFilter({ onChange }) {
 
   useEffect(() => { emit(mode, month, start, end); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
-  return (
-    <div className="flex flex-wrap items-end gap-3">
+  const fields = (
+    <>
       <div className="space-y-1.5">
         <Label className="text-xs">Periode</Label>
         <Select
           value={mode}
           onValueChange={(v) => { setMode(v); emit(v, month, start, end); }}
         >
-          <SelectTrigger className="w-[180px]" data-testid="period-mode-select"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-full sm:w-[180px]" data-testid="period-mode-select"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="full">Tahun Berjalan Penuh</SelectItem>
             <SelectItem value="month">Per Bulan</SelectItem>
@@ -52,7 +57,7 @@ export default function PeriodFilter({ onChange }) {
         <div className="space-y-1.5">
           <Label className="text-xs">Bulan</Label>
           <Select value={month} onValueChange={(v) => { setMonth(v); emit("month", v, start, end); }}>
-            <SelectTrigger className="w-[150px]" data-testid="period-month-select"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-full sm:w-[150px]" data-testid="period-month-select"><SelectValue /></SelectTrigger>
             <SelectContent>
               {ID_MONTHS.map((m, i) => (
                 <SelectItem key={m} value={String(i + 1)}>{m}</SelectItem>
@@ -78,6 +83,14 @@ export default function PeriodFilter({ onChange }) {
           </div>
         </>
       )}
+    </>
+  );
+
+  if (asFields) return fields;
+
+  return (
+    <div className="grid grid-cols-2 items-end gap-3 sm:flex sm:flex-wrap [&>*]:min-w-0">
+      {fields}
     </div>
   );
 }

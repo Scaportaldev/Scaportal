@@ -156,7 +156,7 @@ export default function KlienHistory() {
         </Button>
       )}
     >
-      <Card className="grid shrink-0 grid-cols-2 items-end gap-3 rounded-2xl p-4 md:grid-cols-3 lg:grid-cols-6"
+      <Card className="grid shrink-0 grid-cols-2 items-end gap-3 rounded-2xl p-4 md:grid-cols-3 lg:grid-cols-6 [&>*]:min-w-0"
         data-testid="klien-history-filters">
         <div className="space-y-1.5">
           <Label className="text-xs">Klien</Label>

@@ -236,9 +236,9 @@ export default function TempoInvoices() {
           <Input className="pl-9" placeholder="Cari klien / no. invoice / no. PO..." data-testid="tempo-search-input"
             value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap [&>*]:min-w-0">
           <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="w-[160px]" data-testid="tempo-status-filter"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-full sm:w-[160px]" data-testid="tempo-status-filter"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Semua Status</SelectItem>
               <SelectItem value="lunas">Lunas</SelectItem>
@@ -246,7 +246,7 @@ export default function TempoInvoices() {
             </SelectContent>
           </Select>
           <Select value={sortBy} onValueChange={(v) => { setSortBy(v); setOrder("asc"); }}>
-            <SelectTrigger className="w-[180px]" data-testid="tempo-sort-select"><SelectValue /></SelectTrigger>
+            <SelectTrigger className="w-full sm:w-[180px]" data-testid="tempo-sort-select"><SelectValue /></SelectTrigger>
             <SelectContent>
               {Object.entries(SORT_LABELS).map(([k, v]) => (
                 <SelectItem key={k} value={k}>{v}</SelectItem>
