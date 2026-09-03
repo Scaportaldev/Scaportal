@@ -15,7 +15,6 @@ node_modules
 # Bukan bagian aplikasi Next.js
 backend
 frontend
-legacy_backend
 tests
 test_reports
 memory

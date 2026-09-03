@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 import json
 
 class StokSCAAPITester:
-    def __init__(self, base_url="https://live-preview-stock.preview.emergentagent.com/api"):
+    def __init__(self, base_url="http://localhost:3000/api"):
         self.base_url = base_url
         self.token = None
         self.admin_token = None

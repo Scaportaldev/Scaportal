@@ -141,8 +141,8 @@ bertahun-tahun karena foto disimpan di R2.
 │       ├── mutations.js              # validasi + aturan edit/hapus
 │       ├── reports.js                # dashboard, stok, detail
 │       └── pdf/{core.js,builders.js}
-├── scripts/migrate_mongo_to_mariadb.mjs  # migrasi data lama MongoDB -> MariaDB
-├── scripts/seed.mjs                  # seed manual (opsional, versi Mongo lama)
+├── deploy/dummy_data.sql             # dump SQL data awal/dummy (impor lewat phpMyAdmin)
+├── deploy/phpmyadmin.compose.yml     # phpMyAdmin untuk db.scaportal.cloud
 ├── package.json                      # aplikasi Next.js (root repo)
 ├── next.config.js
 ├── tailwind.config.js
@@ -154,7 +154,6 @@ bertahun-tahun karena foto disimpan di R2.
 ├── tests/test_core.sh                # smoke test API end-to-end (47 skenario)
 ├── backend/server.py                 # reverse proxy /api -> Next.js (khusus preview Emergent)
 ├── frontend/package.json             # shim preview Emergent (meneruskan ke root)
-└── legacy_backend/                   # kode FastAPI lama, hanya referensi
 ```
 
 > **Catatan 1:** aplikasi Next.js berada di **root repo**, jadi Base Directory di Coolify
@@ -224,9 +223,10 @@ Ringkasan — langkah detail (MariaDB, phpMyAdmin, Cloudflare R2, domain, troubl
 5. **Domains**: `https://app.scaportal.cloud` (atau subdomain pilihan) → DNS A record ke IP VPS → **Deploy**.
    SSL Let's Encrypt otomatis oleh Traefik bawaan Coolify. Tabel & superadmin dibuat otomatis saat start.
 6. Cek `https://app.scaportal.cloud/api/health` → `{"status":"ok"}` → login superadmin.
-7. (Opsional) **Services → phpMyAdmin** dengan `PMA_HOST=<host internal MariaDB>` dan domain `https://db.scaportal.cloud`.
-8. (Sekali saja) Migrasi data lama dari MongoDB Atlas lewat Terminal container aplikasi:
-   `MONGO_URL="mongodb+srv://..." MONGO_DB_NAME=laporan_stok_sca node scripts/migrate_mongo_to_mariadb.mjs`
+7. **Services → phpMyAdmin** dengan `PMA_HOST=<host internal MariaDB>` dan domain `https://db.scaportal.cloud`
+   (lihat DEPLOY.md bagian 15).
+8. (Opsional, sekali saja) Impor data awal/dummy: phpMyAdmin → database `default` → **Import** →
+   unggah `deploy/dummy_data.sql`.
 
 ### Checklist produksi
 
@@ -367,13 +367,20 @@ Struktur bisa dilihat/diedit lewat **phpMyAdmin** (one-click service di Coolify)
 | Stok Klien | `klien_clients` ⟵ `klien_pos` ⟵ `klien_items` ⟵ `klien_mutations` (FK cascade) |
 | Jatuh Tempo | `tempo_invoices` ⟵ `tempo_installments`, `tempo_top_options` |
 
-### Migrasi data lama dari MongoDB
+### Impor data awal / dummy
+
+Tabel dibuat otomatis oleh aplikasi saat start (idempotent), jadi database kosong pun langsung jalan —
+superadmin di-seed dari `SUPERADMIN_USERNAME` / `SUPERADMIN_PASSWORD`.
+
+Bila ingin mengisi data contoh (839 baris: users, mutasi kertas/tinta/lainnya, PO, klien, invoice tempo, log):
+
+- **phpMyAdmin** (`https://db.scaportal.cloud`) → pilih database `default` → tab **Import** →
+  unggah `deploy/dummy_data.sql` → Import.
+- **atau** lewat Terminal container MariaDB di Coolify:
 
 ```bash
-MONGO_URL="mongodb+srv://..." MONGO_DB_NAME="laporan_stok_sca" \
-DATABASE_URL="mysql://user:pass@host:3306/db" \
-node scripts/migrate_mongo_to_mariadb.mjs
+mariadb -u mariadb -p default < deploy/dummy_data.sql
 ```
 
-Script mengosongkan tabel tujuan lalu menyalin seluruh koleksi (users, mutasi, PO, klien, invoice, log).
-Tambahkan `--keep` bila tidak ingin mengosongkan tabel tujuan.
+> Dump memakai `DROP TABLE IF EXISTS` + `CREATE TABLE`, jadi impor akan **menimpa** isi tabel yang ada.
+> Jangan dijalankan di database yang sudah berisi data produksi.
