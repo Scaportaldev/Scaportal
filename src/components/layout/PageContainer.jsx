@@ -68,7 +68,9 @@ export default function PageContainer({
           {hasHeader && (
             <div className="mb-6 flex shrink-0 flex-wrap items-start justify-between gap-3">
               <Heading title={pageTitle ?? ""} description={pageDescription} />
-              {pageHeaderAction && <div className="flex shrink-0 items-center gap-2">{pageHeaderAction}</div>}
+              {pageHeaderAction && (
+                <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">{pageHeaderAction}</div>
+              )}
             </div>
           )}
           <div
