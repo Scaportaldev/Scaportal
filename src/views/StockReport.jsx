@@ -114,11 +114,11 @@ export default function StockReport() {
     >
 
       <Card className="p-4">
-        <div className="flex flex-wrap items-end gap-4">
+        <div className="flex flex-col items-stretch gap-4 sm:flex-row sm:flex-wrap sm:items-end [&>*]:min-w-0">
           <div className="space-y-1.5">
             <Label className="flex items-center gap-1.5 text-xs"><Filter className="h-3.5 w-3.5" /> Filter Supplier</Label>
             <Select value={fSupplier} onValueChange={setFSupplier}>
-              <SelectTrigger className="w-[220px]" data-testid="filter-supplier-stock"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-full sm:w-[220px]" data-testid="filter-supplier-stock"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Semua Supplier</SelectItem>
                 {suppliers.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}

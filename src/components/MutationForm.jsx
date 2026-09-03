@@ -137,7 +137,9 @@ export default function MutationForm({ type, open, onOpenChange, onSaved, editDa
         </DialogHeader>
 
         <div className="grid gap-4">
-          <div className="grid grid-cols-2 gap-3">
+          {/* Tanggal + Jenis Transaksi ditumpuk di HP: di iOS Safari input date
+              lebarnya tidak bisa mengecil, jadi dua kolom saling menimpa. */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 [&>*]:min-w-0">
             <div className="space-y-1.5">
               <Label>Tanggal</Label>
               <Input type="date" value={f.date} data-testid="mf-date" onChange={(e) => set("date", e.target.value)} />
@@ -162,7 +164,7 @@ export default function MutationForm({ type, open, onOpenChange, onSaved, editDa
                 <Input list={listId} value={f.jenis_kertas} data-testid="mf-jenis-kertas" placeholder="mis. Ivory, HVS, Art Paper" onChange={(e) => set("jenis_kertas", e.target.value)} />
                 <datalist id={listId}>{jenisOptions.map((o) => <option key={o} value={o} />)}</datalist>
               </div>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-3 gap-2 sm:gap-3 [&>*]:min-w-0">
                 <div className="space-y-1.5"><Label>Gramatur</Label><Input type="number" value={f.gramatur} data-testid="mf-gramatur" onChange={(e) => set("gramatur", e.target.value)} /></div>
                 <div className="space-y-1.5"><Label>Panjang (cm)</Label><Input type="number" value={f.panjang} data-testid="mf-panjang" onChange={(e) => set("panjang", e.target.value)} /></div>
                 <div className="space-y-1.5"><Label>Lebar (cm)</Label><Input type="number" value={f.lebar} data-testid="mf-lebar" onChange={(e) => set("lebar", e.target.value)} /></div>
@@ -177,7 +179,7 @@ export default function MutationForm({ type, open, onOpenChange, onSaved, editDa
             </div>
           )}
           {isOther && (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 [&>*]:min-w-0">
               <div className="space-y-1.5">
                 <Label>Nama Barang</Label>
                 <Input list={listId} value={f.nama_barang} data-testid="mf-nama-barang" placeholder="mis. Lem, Plat, Kawat" onChange={(e) => set("nama_barang", e.target.value)} />
@@ -195,7 +197,7 @@ export default function MutationForm({ type, open, onOpenChange, onSaved, editDa
             <Input value={f.kode} data-testid="mf-kode" placeholder="Kode mutasi / batch (mis. INV-001)" onChange={(e) => set("kode", e.target.value)} />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 [&>*]:min-w-0">
             <div className="space-y-1.5"><Label>Jumlah ({unit})</Label><Input type="number" value={f.jumlah} data-testid="mf-jumlah" onChange={(e) => set("jumlah", e.target.value)} /></div>
             <div className="space-y-1.5"><Label>Nama Admin/PIC</Label><Input value={f.pic_name} data-testid="mf-pic" onChange={(e) => set("pic_name", e.target.value)} /></div>
           </div>

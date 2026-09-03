@@ -226,12 +226,14 @@ export default function MutationsPage({ type }) {
     >
 
       <Card className="p-4 md:shrink-0">
-        <div className="flex flex-wrap items-end gap-3">
-          <PeriodFilter onChange={setPeriod} />
+        {/* Di HP semua filter ditata satu grid 2 kolom supaya sejajar; dari sm
+            ke atas kembali jadi satu baris seperti sebelumnya. */}
+        <div className="grid grid-cols-2 items-end gap-3 sm:flex sm:flex-wrap [&>*]:min-w-0">
+          <PeriodFilter onChange={setPeriod} asFields />
           <div className="space-y-1.5">
             <Label className="text-xs">{isPaper ? "Jenis Kertas" : isOther ? "Nama Barang" : "Jenis Tinta"}</Label>
             <Select value={fJenis} onValueChange={setFJenis}>
-              <SelectTrigger className="w-[160px]" data-testid="filter-jenis"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-full sm:w-[160px]" data-testid="filter-jenis"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Semua</SelectItem>
                 {jenisOptions.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
@@ -241,7 +243,7 @@ export default function MutationsPage({ type }) {
           <div className="space-y-1.5">
             <Label className="text-xs">Transaksi</Label>
             <Select value={fTrx} onValueChange={setFTrx}>
-              <SelectTrigger className="w-[140px]" data-testid="filter-transaksi"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-full sm:w-[140px]" data-testid="filter-transaksi"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Semua</SelectItem>
                 <SelectItem value="masuk">Masuk</SelectItem>
@@ -252,9 +254,9 @@ export default function MutationsPage({ type }) {
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs">Supplier</Label>
-            <Input className="w-[150px]" value={fSupplier} data-testid="filter-supplier" placeholder="Supplier" onChange={(e) => setFSupplier(e.target.value)} />
+            <Input className="w-full sm:w-[150px]" value={fSupplier} data-testid="filter-supplier" placeholder="Supplier" onChange={(e) => setFSupplier(e.target.value)} />
           </div>
-          <div className="space-y-1.5 flex-1 min-w-[180px]">
+          <div className="col-span-2 space-y-1.5 sm:col-span-1 sm:flex-1 sm:min-w-[180px]">
             <Label className="text-xs">Pencarian</Label>
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />

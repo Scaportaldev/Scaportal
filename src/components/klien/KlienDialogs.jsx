@@ -255,7 +255,7 @@ export function ItemDialog({ open, onOpenChange, po, item, onSaved }) {
             <Input id="item-jenis" data-testid="item-jenis-input" value={form.jenis_item}
               onChange={set("jenis_item")} placeholder="Contoh: Kain Katun" autoFocus />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 [&>*]:min-w-0">
             <div className="space-y-1.5">
               <Label htmlFor="item-satuan">Satuan</Label>
               <Input id="item-satuan" data-testid="item-satuan-input" value={form.satuan}
