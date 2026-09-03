@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import {
-  ArrowDownToLine, ArrowUpFromLine, Pencil, Trash2, RotateCcw, FileDown, History,
+  ArrowDownToLine, ArrowUpFromLine, RotateCcw, FileDown, History,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -11,21 +11,15 @@ import { fmtDateTime } from "@/lib/format";
 import { apiError } from "@/context/AuthContext";
 import PageContainer from "@/components/layout/PageContainer";
 import TablePagination from "@/components/TablePagination";
+import MutasiTable from "@/components/MutasiTable";
 import { MutationDialog, ConfirmDeleteDialog } from "@/components/klien/KlienDialogs";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle,
-} from "@/components/ui/empty";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
 
 const INIT = { klien_id: "semua", po_id: "semua", jenis: "semua", start: "", end: "" };
 
@@ -119,6 +113,36 @@ export default function KlienHistory() {
   const totalMasuk = rows.filter((m) => m.jenis === "masuk").length;
   const totalKeluar = rows.length - totalMasuk;
 
+  // Konfigurasi kolom MutasiTable (desktop = tabel, mobile = kartu).
+  const columns = [
+    { id: "tanggal", label: "Tanggal & Waktu", headClassName: "whitespace-nowrap", cellClassName: "whitespace-nowrap text-muted-foreground", cardClassName: "col-span-2", render: (m) => fmtDateTime(m.tanggal) },
+    { id: "klien", label: "Nama Klien", role: "name", cellClassName: "whitespace-nowrap font-medium", render: (m) => m.nama_klien },
+    { id: "po", label: "No PO", render: (m) => m.no_po },
+    { id: "item", label: "Jenis Item", cellClassName: "whitespace-nowrap", render: (m) => m.jenis_item },
+    { id: "mutasi", label: "Mutasi", role: "status", render: (m) => <MutasiBadge jenis={m.jenis} /> },
+    {
+      id: "jumlah", label: "Jumlah", align: "right",
+      cellClassName: "whitespace-nowrap font-semibold [font-variant-numeric:tabular-nums]",
+      render: (m) => (
+        <span data-testid={`history-qty-${m.id}`}>
+          {m.jenis === "masuk" ? "+" : "-"}{fmtQty(m.jumlah)} {m.satuan}
+        </span>
+      ),
+    },
+    {
+      id: "keterangan", label: "Keterangan", cellClassName: "max-w-[220px] truncate text-muted-foreground", cardClassName: "col-span-2",
+      render: (m) => m.keterangan || "-",
+      cardRender: (m) => <span className="font-normal text-muted-foreground">{m.keterangan || "-"}</span>,
+    },
+  ];
+  // onDelete hanya membuka ConfirmDeleteDialog — eksekusi hapus terjadi setelah konfirmasi.
+  const actions = {
+    onEdit: (m) => setEditMut(m),
+    onDelete: (m) => setDelMut(m),
+    editTestId: (m) => `edit-mutation-btn-${m.id}`,
+    deleteTestId: (m) => `delete-mutation-btn-${m.id}`,
+  };
+
   return (
     <PageContainer
       testid="klien-history-page"
@@ -183,78 +207,30 @@ export default function KlienHistory() {
         </Button>
       </Card>
 
-      <Card className="flex flex-col overflow-hidden rounded-2xl p-0 md:min-h-0 md:flex-1">
-        <div className="min-h-0 flex-1 overflow-auto">
-          <Table data-testid="klien-history-table">
-            <TableHeader className="sticky top-0 z-10 bg-card">
-              <TableRow>
-                <TableHead className="whitespace-nowrap">Tanggal &amp; Waktu</TableHead>
-                <TableHead>Nama Klien</TableHead>
-                <TableHead>No PO</TableHead>
-                <TableHead>Jenis Item</TableHead>
-                <TableHead>Mutasi</TableHead>
-                <TableHead className="text-right">Jumlah</TableHead>
-                <TableHead>Keterangan</TableHead>
-                <TableHead className="text-right">Aksi</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading ? (
-                [...Array(6)].map((_, i) => (
-                  <TableRow key={i}>
-                    {[...Array(8)].map((__, j) => (
-                      <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
-                    ))}
-                  </TableRow>
-                ))
-              ) : pageRows.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={8} className="py-14">
-                    <Empty data-testid="klien-history-empty">
-                      <EmptyHeader>
-                        <EmptyMedia variant="icon"><History /></EmptyMedia>
-                        <EmptyTitle>Belum ada mutasi tercatat</EmptyTitle>
-                        <EmptyDescription>
-                          Catat mutasi masuk/keluar dari halaman Stok Klien, atau ubah filter di atas.
-                        </EmptyDescription>
-                      </EmptyHeader>
-                    </Empty>
-                  </TableCell>
-                </TableRow>
-              ) : (
-                pageRows.map((m) => (
-                  <TableRow key={m.id} data-testid={`history-row-${m.id}`}>
-                    <TableCell className="whitespace-nowrap text-muted-foreground">{fmtDateTime(m.tanggal)}</TableCell>
-                    <TableCell className="whitespace-nowrap font-medium">{m.nama_klien}</TableCell>
-                    <TableCell>{m.no_po}</TableCell>
-                    <TableCell className="whitespace-nowrap">{m.jenis_item}</TableCell>
-                    <TableCell><MutasiBadge jenis={m.jenis} /></TableCell>
-                    <TableCell className="whitespace-nowrap text-right font-semibold [font-variant-numeric:tabular-nums]"
-                      data-testid={`history-qty-${m.id}`}>
-                      {m.jenis === "masuk" ? "+" : "-"}{fmtQty(m.jumlah)} {m.satuan}
-                    </TableCell>
-                    <TableCell className="max-w-[220px] truncate text-muted-foreground">{m.keterangan || "-"}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center justify-end gap-0.5">
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-foreground"
-                          onClick={() => setEditMut(m)} data-testid={`edit-mutation-btn-${m.id}`}>
-                          <Pencil className="h-3.5 w-3.5" />
-                        </Button>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                          onClick={() => setDelMut(m)} data-testid={`delete-mutation-btn-${m.id}`}>
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
+      <div
+        className="flex flex-col gap-3 md:gap-0 md:min-h-0 md:flex-1 md:overflow-hidden md:rounded-2xl md:border md:border-border/70 md:bg-card md:text-card-foreground md:shadow-soft"
+        data-testid="klien-history-table"
+      >
+        <MutasiTable
+          columns={columns}
+          data={pageRows}
+          rowKey={(m) => m.id}
+          rowTestId={(m) => `history-row-${m.id}`}
+          actions={actions}
+          isLoading={isLoading}
+          skeletonRows={6}
+          scrollClassName="overflow-auto md:min-h-0 md:flex-1"
+          testid="klien-history-body"
+          empty={{
+            icon: <History />,
+            title: "Belum ada mutasi tercatat",
+            description: "Catat mutasi masuk/keluar dari halaman Stok Klien, atau ubah filter di atas.",
+          }}
+        />
         <TablePagination page={page} pageSize={pageSize} total={rows.length}
+          className="max-md:static max-md:rounded-xl max-md:border max-md:border-border/70 max-md:shadow-soft"
           onPageChange={setPage} onPageSizeChange={(v) => { setPageSize(v); setPage(1); }} />
-      </Card>
+      </div>
 
       <MutationDialog open={!!editMut} onOpenChange={(o) => !o && setEditMut(null)}
         mutation={editMut} onSaved={reload} />

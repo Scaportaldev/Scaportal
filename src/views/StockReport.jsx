@@ -11,10 +11,7 @@ import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
-import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription } from "@/components/ui/empty";
+import MutasiTable from "@/components/MutasiTable";
 import PageContainer from "@/components/layout/PageContainer";
 
 export default function StockReport() {
@@ -72,6 +69,27 @@ export default function StockReport() {
     )) : <span className="text-xs text-muted-foreground">-</span>;
   };
 
+  // Kolom bersama untuk ketiga tabel stok (dipakai MutasiTable).
+  const supplierCol = {
+    id: "supplier",
+    label: filtered ? "Stok Supplier" : "Per Supplier",
+    cardClassName: "col-span-2 flex-col items-stretch gap-1",
+    render: (p) => <div className="flex flex-wrap gap-1">{badges(p)}</div>,
+    cardRender: (p) => <div className="flex flex-wrap justify-end gap-1 pt-0.5">{badges(p)}</div>,
+  };
+  const totalCol = (unit) => ({
+    id: "total",
+    label: filtered ? "Stok Supplier" : "Total Stok",
+    role: "status",
+    align: "right",
+    cellClassName: "font-semibold",
+    render: (p) => (
+      <span className="whitespace-nowrap font-semibold tabular-nums">
+        {formatNumber(filtered ? supStock(p, fSupplier) : p.stock)} {unit ?? p.satuan ?? ""}
+      </span>
+    ),
+  });
+
   return (
     <PageContainer
       testid="stock-report-page"
@@ -123,79 +141,52 @@ export default function StockReport() {
       </Card>
 
       <div className="grid gap-5 lg:grid-cols-2">
-        <Card className="overflow-hidden">
-          <div className="border-b border-border px-5 py-3">
-            <h3 className="font-display text-lg font-bold">Stok Kertas (Rim)</h3>
-          </div>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Jenis</TableHead><TableHead>Gramatur</TableHead>
-                  <TableHead>Ukuran</TableHead><TableHead>{filtered ? "Stok Supplier" : "Per Supplier"}</TableHead>
-                  <TableHead className="text-right">{filtered ? "Stok Supplier" : "Total Stok"}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody data-testid="paper-stock-table">
-                {paperRows.length ? paperRows.map((p, i) => (
-                  <TableRow key={i}>
-                    <TableCell className="font-medium">{p.jenis_kertas}</TableCell>
-                    <TableCell>{formatNumber(p.gramatur)}</TableCell>
-                    <TableCell className="whitespace-nowrap">{formatNumber(p.panjang)}x{formatNumber(p.lebar)} cm</TableCell>
-                    <TableCell><div className="flex flex-wrap gap-1">{badges(p)}</div></TableCell>
-                    <TableCell className="text-right font-semibold">{formatNumber(filtered ? supStock(p, fSupplier) : p.stock)} Rim</TableCell>
-                  </TableRow>
-                )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={5} className="py-6"><Empty className="py-3"><EmptyHeader><EmptyMedia variant="icon"><Inbox /></EmptyMedia><EmptyTitle>Belum ada data stok</EmptyTitle><EmptyDescription>Data muncul setelah ada mutasi masuk.</EmptyDescription></EmptyHeader></Empty></TableCell></TableRow>}
-              </TableBody>
-            </Table>
-          </div>
-        </Card>
-
-        <Card className="overflow-hidden">
-          <div className="border-b border-border px-5 py-3">
-            <h3 className="font-display text-lg font-bold">Stok Tinta (Kg)</h3>
-          </div>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow><TableHead>Jenis Tinta</TableHead><TableHead>{filtered ? "Stok Supplier" : "Per Supplier"}</TableHead><TableHead className="text-right">{filtered ? "Stok Supplier" : "Total Stok"}</TableHead></TableRow>
-              </TableHeader>
-              <TableBody data-testid="ink-stock-table">
-                {inkRows.length ? inkRows.map((p, i) => (
-                  <TableRow key={i}>
-                    <TableCell className="font-medium">{p.jenis_tinta}</TableCell>
-                    <TableCell><div className="flex flex-wrap gap-1">{badges(p)}</div></TableCell>
-                    <TableCell className="text-right font-semibold">{formatNumber(filtered ? supStock(p, fSupplier) : p.stock)} Kg</TableCell>
-                  </TableRow>
-                )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={3} className="py-6"><Empty className="py-3"><EmptyHeader><EmptyMedia variant="icon"><Inbox /></EmptyMedia><EmptyTitle>Belum ada data stok</EmptyTitle><EmptyDescription>Data muncul setelah ada mutasi masuk.</EmptyDescription></EmptyHeader></Empty></TableCell></TableRow>}
-              </TableBody>
-            </Table>
-          </div>
-        </Card>
+        <StockSection title="Stok Kertas (Rim)" testid="paper-stock-table" data={paperRows}
+          columns={[
+            { id: "jenis", label: "Jenis", role: "name", cellClassName: "font-medium", render: (p) => p.jenis_kertas },
+            { id: "gram", label: "Gramatur", render: (p) => formatNumber(p.gramatur) },
+            { id: "ukuran", label: "Ukuran", cellClassName: "whitespace-nowrap", render: (p) => `${formatNumber(p.panjang)}x${formatNumber(p.lebar)} cm` },
+            supplierCol,
+            totalCol("Rim"),
+          ]}
+        />
+        <StockSection title="Stok Tinta (Kg)" testid="ink-stock-table" data={inkRows}
+          columns={[
+            { id: "jenis", label: "Jenis Tinta", role: "name", cellClassName: "font-medium", render: (p) => p.jenis_tinta },
+            supplierCol,
+            totalCol("Kg"),
+          ]}
+        />
       </div>
 
-      <Card className="overflow-hidden">
-        <div className="border-b border-border px-5 py-3">
-          <h3 className="font-display text-lg font-bold">Stok Lain</h3>
-        </div>
-        <div className="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow><TableHead>Nama Barang</TableHead><TableHead>Satuan</TableHead><TableHead>{filtered ? "Stok Supplier" : "Per Supplier"}</TableHead><TableHead className="text-right">{filtered ? "Stok Supplier" : "Total Stok"}</TableHead></TableRow>
-            </TableHeader>
-            <TableBody data-testid="other-stock-table">
-              {otherRows.length ? otherRows.map((p, i) => (
-                <TableRow key={i}>
-                  <TableCell className="font-medium">{p.nama_barang}</TableCell>
-                  <TableCell>{p.satuan || "-"}</TableCell>
-                  <TableCell><div className="flex flex-wrap gap-1">{badges(p)}</div></TableCell>
-                  <TableCell className="text-right font-semibold">{formatNumber(filtered ? supStock(p, fSupplier) : p.stock)} {p.satuan || ""}</TableCell>
-                </TableRow>
-              )) : <TableRow className="hover:bg-transparent"><TableCell colSpan={4} className="py-6"><Empty className="py-3"><EmptyHeader><EmptyMedia variant="icon"><Inbox /></EmptyMedia><EmptyTitle>Belum ada data stok</EmptyTitle><EmptyDescription>Data muncul setelah ada mutasi masuk.</EmptyDescription></EmptyHeader></Empty></TableCell></TableRow>}
-            </TableBody>
-          </Table>
-        </div>
-      </Card>
+      <StockSection title="Stok Lain" testid="other-stock-table" data={otherRows}
+        columns={[
+          { id: "nama", label: "Nama Barang", role: "name", cellClassName: "font-medium", render: (p) => p.nama_barang },
+          { id: "satuan", label: "Satuan", render: (p) => p.satuan || "-" },
+          supplierCol,
+          totalCol(),
+        ]}
+      />
     </PageContainer>
+  );
+}
+
+/** Seksi tabel stok: desktop = Card + tabel, mobile = judul + list kartu (via MutasiTable). */
+function StockSection({ title, columns, data, testid }) {
+  return (
+    <section
+      className="flex flex-col gap-3 md:gap-0 md:overflow-hidden md:rounded-xl md:border md:border-border/70 md:bg-card md:text-card-foreground md:shadow-soft"
+      data-testid={`${testid}-section`}
+    >
+      <h3 className="font-display text-lg font-bold md:border-b md:border-border md:px-5 md:py-3">{title}</h3>
+      <MutasiTable
+        columns={columns}
+        data={data}
+        rowKey={(_, i) => i}
+        scrollClassName="overflow-x-auto"
+        testid={testid}
+        empty={{ icon: <Inbox />, title: "Belum ada data stok", description: "Data muncul setelah ada mutasi masuk." }}
+      />
+    </section>
   );
 }

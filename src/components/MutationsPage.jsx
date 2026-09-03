@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
-import { Plus, Search, FileDown, Pencil, Trash2, Link2, Inbox } from "lucide-react";
+import { Plus, Search, FileDown, Link2, Inbox } from "lucide-react";
 import { toast } from "sonner";
 import api, { downloadPdf } from "@/lib/api";
 import { useAuth, apiError } from "@/context/AuthContext";
@@ -14,11 +14,7 @@ import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
-import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription } from "@/components/ui/empty";
-import TableSkeleton from "@/components/TableSkeleton";
+import MutasiTable from "@/components/MutasiTable";
 import PageContainer from "@/components/layout/PageContainer";
 import TableViewOptions from "@/components/TableViewOptions";
 import TablePagination from "@/components/TablePagination";
@@ -137,10 +133,11 @@ export default function MutationsPage({ type }) {
   };
 
   // Kolom yang bisa disembunyikan (pola data-table-view-options dashboard starter).
+  const nameLabel = isPaper ? "Jenis Kertas" : isOther ? "Nama Barang" : "Jenis Tinta";
   const columnDefs = [
     { id: "date", label: "Tanggal" },
     { id: "kode", label: "Kode" },
-    { id: "nama", label: isPaper ? "Jenis Kertas" : isOther ? "Nama Barang" : "Jenis Tinta" },
+    { id: "nama", label: nameLabel },
     ...(isPaper ? [{ id: "gram", label: "Gram" }, { id: "ukuran", label: "Ukuran" }] : []),
     ...(isOther ? [{ id: "satuan", label: "Satuan" }] : []),
     { id: "trx", label: "Transaksi" },
@@ -154,7 +151,56 @@ export default function MutationsPage({ type }) {
   const visible = Object.fromEntries(columnDefs.map((c) => [c.id, hidden[c.id] !== true]));
   const show = (id) => visible[id] !== false;
   const toggleCol = (id, next) => setHidden((h) => ({ ...h, [id]: !next }));
-  const colCount = columnDefs.filter((c) => show(c.id)).length;
+
+  // Konfigurasi kolom MutasiTable — dinamis per jenis mutasi (Kertas punya Gram/Ukuran,
+  // Lain punya Satuan, dst). Kolom yang disembunyikan lewat TableViewOptions ikut hilang
+  // baik di tabel desktop maupun kartu mobile.
+  const priceModeLabel = { per_rim: "per rim", per_kg: "per kg", total: "total kiriman" };
+  const tableColumns = [
+    show("date") && { id: "date", label: "Tanggal", cellClassName: "whitespace-nowrap", render: (m) => formatDateID(m.date) },
+    show("kode") && { id: "kode", label: "Kode", cellClassName: "code-chip text-xs", render: (m) => m.kode || "-" },
+    show("nama") && {
+      id: "nama", label: nameLabel, role: "name", cellClassName: "font-medium",
+      render: (m) => (
+        <>
+          {nameOf(m)}
+          {m.ref_mutation_id && (
+            <span className="ml-1 inline-flex items-center gap-1 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] text-amber-600">
+              <Link2 className="h-3 w-3" /> Retur dari {refLabel(m.ref_mutation_id)}
+            </span>
+          )}
+        </>
+      ),
+    },
+    isPaper && show("gram") && { id: "gram", label: "Gram", render: (m) => formatNumber(m.gramatur) },
+    isPaper && show("ukuran") && { id: "ukuran", label: "Ukuran", cellClassName: "whitespace-nowrap", render: (m) => `${formatNumber(m.panjang)}x${formatNumber(m.lebar)} cm` },
+    isOther && show("satuan") && { id: "satuan", label: "Satuan", render: (m) => m.satuan || "-" },
+    show("trx") && { id: "trx", label: "Transaksi", role: "status", render: (m) => trxBadge(m.jenis_transaksi) },
+    show("jumlah") && { id: "jumlah", label: "Jumlah", align: "right", cellClassName: "whitespace-nowrap font-semibold", render: (m) => `${formatNumber(m.jumlah)} ${unitOf(m)}` },
+    show("supplier") && { id: "supplier", label: "Supplier", render: (m) => m.supplier || "-" },
+    show("pic") && { id: "pic", label: "PIC", render: (m) => m.pic_name },
+    show("harga") && {
+      id: "harga", label: "Harga", align: "right", cellClassName: "whitespace-nowrap",
+      render: (m) => (
+        <>
+          {m.jenis_transaksi === "masuk" ? formatRupiah(priceOf(m)) : "-"}
+          {isPaper && m.jenis_transaksi === "masuk" && m.price_mode && (
+            <div className="font-sans text-[10px] font-normal text-muted-foreground">{priceModeLabel[m.price_mode]}</div>
+          )}
+        </>
+      ),
+    },
+    show("ppn") && { id: "ppn", label: "PPN", align: "right", cellClassName: "whitespace-nowrap", render: (m) => (m.ppn_ada ? formatRupiah(m.ppn_nominal) : "-") },
+  ].filter(Boolean);
+
+  // Aksi Edit/Hapus. onDelete hanya membuka dialog konfirmasi (AlertDialog di bawah).
+  const tableActions = show("aksi") ? {
+    onEdit: openEdit,
+    onDelete: (m) => setDelId(m.id),
+    canModify,
+    editTestId: (m) => `edit-${m.id}`,
+    deleteTestId: (m) => `delete-${m.id}`,
+  } : null;
 
   // Pagination sisi klien.
   const total = rows.length;
@@ -218,91 +264,32 @@ export default function MutationsPage({ type }) {
         </div>
       </Card>
 
-      {/* Card tabel mengisi sisa tinggi viewport (flex-1 + min-h-0);
-          area scroll internal = flex-1, pagination selalu menempel di dasar Card. */}
-      <Card className="flex flex-col overflow-hidden md:min-h-0 md:flex-1">
-        {isLoading ? (
-          <TableSkeleton columns={colCount} rows={5} />
-        ) : (
-        <div className="max-h-[60vh] overflow-auto md:max-h-none md:min-h-0 md:flex-1">
-          <Table>
-            <TableHeader className="sticky top-0 z-10 bg-card">
-              <TableRow>
-                {show("date") && <TableHead>Tanggal</TableHead>}
-                {show("kode") && <TableHead>Kode</TableHead>}
-                {show("nama") && <TableHead>{isPaper ? "Jenis Kertas" : isOther ? "Nama Barang" : "Jenis Tinta"}</TableHead>}
-                {isPaper && show("gram") && <TableHead>Gram</TableHead>}
-                {isPaper && show("ukuran") && <TableHead>Ukuran</TableHead>}
-                {isOther && show("satuan") && <TableHead>Satuan</TableHead>}
-                {show("trx") && <TableHead>Transaksi</TableHead>}
-                {show("jumlah") && <TableHead className="text-right">Jumlah</TableHead>}
-                {show("supplier") && <TableHead>Supplier</TableHead>}
-                {show("pic") && <TableHead>PIC</TableHead>}
-                {show("harga") && <TableHead className="text-right">Harga</TableHead>}
-                {show("ppn") && <TableHead className="text-right">PPN</TableHead>}
-                {show("aksi") && <TableHead className="text-right">Aksi</TableHead>}
-              </TableRow>
-            </TableHeader>
-            <TableBody data-testid="mutations-table-body">
-              {!isLoading && rows.length === 0 && (
-                <TableRow className="hover:bg-transparent">
-                  <TableCell colSpan={colCount} className="py-6">
-                    <Empty className="py-4">
-                      <EmptyHeader>
-                        <EmptyMedia variant="icon"><Inbox /></EmptyMedia>
-                        <EmptyTitle>Belum ada data mutasi</EmptyTitle>
-                        <EmptyDescription>Tambah mutasi baru atau ubah filter periode / pencarian.</EmptyDescription>
-                      </EmptyHeader>
-                    </Empty>
-                  </TableCell>
-                </TableRow>
-              )}
-              {pagedRows.map((m) => (
-                <TableRow key={m.id} className="stagger-in">
-                  {show("date") && <TableCell className="whitespace-nowrap">{formatDateID(m.date)}</TableCell>}
-                  {show("kode") && <TableCell className="code-chip text-xs">{m.kode || "-"}</TableCell>}
-                  {show("nama") && (
-                    <TableCell className="font-medium">
-                      {nameOf(m)}
-                      {m.ref_mutation_id && (
-                        <span className="ml-1 inline-flex items-center gap-1 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] text-amber-600">
-                          <Link2 className="h-3 w-3" /> Retur dari {refLabel(m.ref_mutation_id)}
-                        </span>
-                      )}
-                    </TableCell>
-                  )}
-                  {isPaper && show("gram") && <TableCell>{formatNumber(m.gramatur)}</TableCell>}
-                  {isPaper && show("ukuran") && <TableCell className="whitespace-nowrap">{formatNumber(m.panjang)}x{formatNumber(m.lebar)} cm</TableCell>}
-                  {isOther && show("satuan") && <TableCell>{m.satuan || "-"}</TableCell>}
-                  {show("trx") && <TableCell>{trxBadge(m.jenis_transaksi)}</TableCell>}
-                  {show("jumlah") && <TableCell className="whitespace-nowrap text-right font-semibold">{formatNumber(m.jumlah)} {unitOf(m)}</TableCell>}
-                  {show("supplier") && <TableCell>{m.supplier || "-"}</TableCell>}
-                  {show("pic") && <TableCell>{m.pic_name}</TableCell>}
-                  {show("harga") && (
-                    <TableCell className="whitespace-nowrap text-right">
-                      {m.jenis_transaksi === "masuk" ? formatRupiah(priceOf(m)) : "-"}
-                      {isPaper && m.jenis_transaksi === "masuk" && m.price_mode && (
-                        <div className="font-sans text-[10px] text-muted-foreground">{{ per_rim: "per rim", per_kg: "per kg", total: "total kiriman" }[m.price_mode]}</div>
-                      )}
-                    </TableCell>
-                  )}
-                  {show("ppn") && <TableCell className="whitespace-nowrap text-right">{m.ppn_ada ? formatRupiah(m.ppn_nominal) : "-"}</TableCell>}
-                  {show("aksi") && (
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-1">
-                        <Button size="icon" variant="ghost" disabled={!canModify(m)} data-testid={`edit-${m.id}`} onClick={() => openEdit(m)}><Pencil className="h-4 w-4" /></Button>
-                        <Button size="icon" variant="ghost" disabled={!canModify(m)} data-testid={`delete-${m.id}`} onClick={() => setDelId(m.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                      </div>
-                    </TableCell>
-                  )}
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-        )}
+      {/* Desktop: Card tabel mengisi sisa tinggi viewport (flex-1 + min-h-0), area scroll
+          internal = flex-1, pagination menempel di dasar Card.
+          Mobile: Card "transparan" agar kartu-kartu mutasi tampil langsung di atas
+          background halaman; pagination dibungkus kartunya sendiri. */}
+      <div
+        className="flex flex-col gap-3 md:gap-0 md:min-h-0 md:flex-1 md:overflow-hidden md:rounded-xl md:border md:border-border/70 md:bg-card md:text-card-foreground md:shadow-soft"
+        data-testid={`mutations-table-card-${type}`}
+      >
+        <MutasiTable
+          columns={tableColumns}
+          data={pagedRows}
+          rowKey={(m) => m.id}
+          actions={tableActions}
+          isLoading={isLoading}
+          skeletonRows={5}
+          scrollClassName="overflow-auto md:min-h-0 md:flex-1"
+          testid="mutations-table-body"
+          empty={{
+            icon: <Inbox />,
+            title: "Belum ada data mutasi",
+            description: "Tambah mutasi baru atau ubah filter periode / pencarian.",
+          }}
+        />
         {total > 0 && (
           <TablePagination
+            className="max-md:static max-md:rounded-xl max-md:border max-md:border-border/70 max-md:shadow-soft"
             page={safePage}
             pageSize={pageSize}
             total={total}
@@ -310,7 +297,7 @@ export default function MutationsPage({ type }) {
             onPageSizeChange={setPageSize}
           />
         )}
-      </Card>
+      </div>
 
       <MutationForm type={type} open={formOpen} onOpenChange={setFormOpen} onSaved={load}
         editData={editData} jenisOptions={jenisOptions} keluarOptions={keluarOptions} masukOptions={masukOptions} userName={user?.name} />
