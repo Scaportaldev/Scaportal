@@ -1,7 +1,7 @@
 # LAPORAN STOK SCA
 
 Sistem **mutasi & laporan stok** kertas, tinta, dan barang lain untuk percetakan SCA.
-Full-stack **Next.js 15 (App Router)** + **MariaDB** (relasional, 19 tabel) + **Cloudflare R2**, siap deploy ke **VPS via Coolify** (Docker). Panduan lengkap: [`DEPLOY.md`](./DEPLOY.md).
+Full-stack **Next.js 15 (App Router)** + **MariaDB** (relasional, 19 tabel) + **Cloudflare R2**, berjalan di **VPS Biznet Gio** (2 vCPU / 4 GB RAM / 60 GB) yang dikelola **Coolify** (Docker + Traefik). Panduan lengkap: [`DEPLOY.md`](./DEPLOY.md).
 
 Antarmuka sepenuhnya Bahasa Indonesia, responsive, mendukung mode terang & gelap.
 
@@ -57,6 +57,39 @@ Aturan bisnis 2 tool klien:
 Section terproteksi (**Laporan Detail**, **Log & User**, **Tutup Tahun**) bisa dibuka oleh
 Admin/PIC dengan **password akses sementara**, berlaku selama sesi login saat itu
 (dikirim ke API lewat header `X-Section-Password`).
+
+---
+
+## Arsitektur produksi
+
+```
+                 Cloudflare DNS (scaportal.cloud)
+                          │
+        ┌─────────────────┴──────────────────┐
+        │  VPS Biznet Gio — 2 vCPU · 4 GB RAM · 60 GB SSD · Ubuntu 22.04  │
+        │                                    │
+        │  Coolify (Docker + Traefik, SSL Let's Encrypt otomatis)         │
+        │  ├── app  : Next.js 15 (image Dockerfile, port 3000)            │
+        │  │         https://app.scaportal.cloud  (contoh)                │
+        │  ├── db   : MariaDB 11 (resource Coolify, Private network)      │
+        │  │         mysql://mariadb:***@<host-internal>:3306/default     │
+        │  └── pma  : phpMyAdmin → https://db.scaportal.cloud             │
+        └────────────────────────────────────┘
+                          │
+                          └──► Cloudflare R2 (bucket `sca-po-photos`, foto tahap PO)
+```
+
+| Komponen | Lokasi | Catatan |
+| --- | --- | --- |
+| Aplikasi Next.js | Container di VPS | Build multi-stage `Dockerfile` (standalone), ±150 MB RAM saat idle |
+| MariaDB | Container di VPS yang sama | Data persisten di volume Docker Coolify; backup terjadwal dari menu Coolify → Backups |
+| phpMyAdmin | Container di VPS | Kelola tabel lewat browser (`db.scaportal.cloud`) |
+| Foto PO | Cloudflare R2 | Tidak membebani disk VPS |
+| Reverse proxy & SSL | Traefik (bawaan Coolify) | Sertifikat otomatis per domain |
+
+Estimasi pemakaian resource pada beban normal: RAM ±1,2 GB (Coolify ±500 MB, MariaDB ±300 MB, app ±150 MB,
+phpMyAdmin ±50 MB) dari 4 GB; disk ±10 GB (OS + Docker image) dari 60 GB — sisa ruang cukup untuk database
+bertahun-tahun karena foto disimpan di R2.
 
 ---
 
@@ -161,17 +194,14 @@ Contoh lengkap ada di `.env.example`. **File `.env` tidak pernah di-commit.**
 ## Menjalankan di lokal
 
 ```bash
-cp .env.example .env.local        # isi MONGO_URL, DB_NAME, JWT_SECRET
+cp .env.example .env.local        # isi DATABASE_URL (MariaDB lokal), JWT_SECRET
 yarn install
 yarn dev                          # http://localhost:3000
 ```
 
-Superadmin & password akses **dibuat otomatis** saat request API pertama.
-Untuk seed manual (mis. menyiapkan Atlas dari lokal):
-
-```bash
-yarn seed
-```
+Butuh MariaDB/MySQL lokal, mis. `docker run -d -p 3306:3306 -e MARIADB_ROOT_PASSWORD=root -e MARIADB_DATABASE=sca_portal mariadb:11`
+lalu `DATABASE_URL=mysql://root:root@127.0.0.1:3306/sca_portal`.
+Tabel, superadmin & password akses **dibuat otomatis** saat request API pertama.
 
 Perintah lain:
 
@@ -182,25 +212,29 @@ yarn serve     # jalankan hasil build
 
 ---
 
-## Deploy ke VPS (Coolify)
+## Deploy ke VPS Biznet Gio (Coolify)
 
-Ringkasan — langkah detail (Atlas, Cloudflare R2, domain, troubleshooting) ada di **[DEPLOY.md](./DEPLOY.md)**.
+Ringkasan — langkah detail (MariaDB, phpMyAdmin, Cloudflare R2, domain, troubleshooting) ada di **[DEPLOY.md](./DEPLOY.md)**.
 
-1. Push repo ke GitHub (private boleh; hubungkan GitHub App di Coolify).
-2. Coolify → **Project** → **+ New Resource** → **Public/Private Repository** → pilih repo & branch `main`.
-3. **Build Pack: Dockerfile** (Dockerfile ada di root). Port: `3000`.
-4. **Environment Variables**: isi semua key di `.env.example`
-   (`MONGO_URL`, `DB_NAME`, `JWT_SECRET`, `SUPERADMIN_*`, `TEMP_ACCESS_PASSWORD`, `R2_*`).
-5. MongoDB Atlas → **Network Access** → tambahkan **IP publik VPS** (atau `0.0.0.0/0`).
-6. **Domains**: `https://stok.domain-anda.com` → DNS A record ke IP VPS → **Deploy**.
-   SSL Let's Encrypt otomatis oleh Traefik bawaan Coolify.
-7. Cek `https://stok.domain-anda.com/api/health` → `{"status":"ok"}` → login superadmin.
+1. Push repo ke GitHub (`Scaportaldev/Scaportal`), branch `main`.
+2. Coolify → **Project** → **+ New Resource** → **Databases → MariaDB** → Create. Salin **MariaDB URL (internal)**.
+3. **+ New Resource** → **Public Repository** → repo & branch `main` → **Build Pack: Dockerfile**, Port `3000`.
+4. **Environment Variables** aplikasi: `DATABASE_URL` (dari langkah 2), `JWT_SECRET`, `SUPERADMIN_*`,
+   `TEMP_ACCESS_PASSWORD`, `OWNER_EMAIL`, `R2_*` — lihat `.env.example`.
+5. **Domains**: `https://app.scaportal.cloud` (atau subdomain pilihan) → DNS A record ke IP VPS → **Deploy**.
+   SSL Let's Encrypt otomatis oleh Traefik bawaan Coolify. Tabel & superadmin dibuat otomatis saat start.
+6. Cek `https://app.scaportal.cloud/api/health` → `{"status":"ok"}` → login superadmin.
+7. (Opsional) **Services → phpMyAdmin** dengan `PMA_HOST=<host internal MariaDB>` dan domain `https://db.scaportal.cloud`.
+8. (Sekali saja) Migrasi data lama dari MongoDB Atlas lewat Terminal container aplikasi:
+   `MONGO_URL="mongodb+srv://..." MONGO_DB_NAME=laporan_stok_sca node scripts/migrate_mongo_to_mariadb.mjs`
 
 ### Checklist produksi
 
 - [ ] `JWT_SECRET` acak dan **berbeda** dari yang dipakai saat development.
 - [ ] `SUPERADMIN_PASSWORD` bukan nilai default.
-- [ ] Password user MongoDB Atlas kuat (bukan sama dengan username).
+- [ ] Password MariaDB kuat (pakai yang digenerate Coolify) dan resource MariaDB tetap **Private** (tidak expose port 3306 ke publik).
+- [ ] Backup MariaDB terjadwal aktif di Coolify (resource MariaDB → **Backups**), idealnya ke S3/R2.
+- [ ] phpMyAdmin hanya diakses lewat HTTPS; pertimbangkan Cloudflare Access / IP allowlist.
 - [ ] `TEMP_ACCESS_PASSWORD` diganti, lalu bisa diubah lagi kapan pun dari
       menu **Log & User → Password Akses** tanpa perlu redeploy.
 - [ ] Token R2 dibatasi ke bucket `sca-po-photos` saja (Object Read & Write).
@@ -283,8 +317,9 @@ stok tidak cukup, retur beserta referensi, filter & pencarian, dashboard,
 laporan stok & detail, log, CRUD user, proteksi section per role, 6 laporan PDF,
 ubah password akses, dan tutup tahun.
 
-Status terakhir: **47/47 PASS**, `yarn build` sukses, testing agent melaporkan
-backend 44/44 dan seluruh alur UI utama berjalan normal tanpa bug kritis.
+Status terakhir (setelah migrasi ke MariaDB): regression test 92 skenario backend
+→ 89 lolos (3 sisanya ekspektasi test yang salah, perilaku aplikasi benar), 0 bug kritis,
+`yarn build` sukses, data produksi hasil migrasi identik dengan sumber (1.940 Rim / 284 Kg).
 
 ### Data contoh 2 tool klien
 
