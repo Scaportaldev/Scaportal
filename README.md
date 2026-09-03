@@ -1,9 +1,33 @@
 # LAPORAN STOK SCA
 
 Sistem **mutasi & laporan stok** kertas, tinta, dan barang lain untuk percetakan SCA.
-Full-stack **Next.js 15 (App Router)** + **MariaDB** (relasional, 19 tabel) + **Cloudflare R2**, berjalan di **VPS Biznet Gio** (2 vCPU / 4 GB RAM / 60 GB) yang dikelola **Coolify** (Docker + Traefik). Panduan lengkap: [`DEPLOY.md`](./DEPLOY.md).
+Full-stack **Next.js 15 (App Router)** + **MariaDB** (relasional, 19 tabel) + **Cloudflare R2**,
+berjalan di **VPS Biznet Gio** (2 vCPU / 4 GB RAM / 60 GB) yang dikelola **Coolify** (Docker + Traefik).
 
 Antarmuka sepenuhnya Bahasa Indonesia, responsive, mendukung mode terang & gelap.
+
+> Repo ini **hanya** memakai MariaDB + Cloudflare R2 + Coolify. Tidak ada lagi MongoDB/Atlas maupun Vercel.
+
+---
+
+## Daftar isi
+
+1. [Fitur](#fitur)
+2. [Role & akses](#role--akses)
+3. [Arsitektur produksi](#arsitektur-produksi)
+4. [Stack](#stack)
+5. [Struktur project](#struktur-project)
+6. [Environment variables](#environment-variables)
+7. [Menjalankan di lokal](#menjalankan-di-lokal)
+8. [Deploy ke Coolify](#deploy-ke-coolify)
+9. [Cloudflare R2](#cloudflare-r2)
+10. [phpMyAdmin](#phpmyadmin)
+11. [Database MariaDB](#database-mariadb)
+12. [Backup & restore](#backup--restore)
+13. [Referensi API](#referensi-api)
+14. [Testing](#testing)
+15. [Troubleshooting](#troubleshooting)
+16. [Catatan preview Emergent](#catatan-preview-emergent)
 
 ---
 
@@ -20,7 +44,7 @@ Antarmuka sepenuhnya Bahasa Indonesia, responsive, mendukung mode terang & gelap
 | **Log & User** | Log aktivitas login/logout, log audit edit/hapus, CRUD user, aktif/nonaktif user, ubah password akses sementara *(section terproteksi)* |
 | **Tutup Tahun** | Wajib unduh PDF laporan dulu, baru reset seluruh data mutasi. Data user & log tetap tersimpan *(section terproteksi)* |
 | **Kalkulator HPP** | Perhitungan harga pokok produksi cetak *(khusus Superadmin)* |
-| **PO Tracker** | Dashboard PO, daftar PO, tahapan/jadwal produksi, kalender jadwal |
+| **PO Tracker** | Dashboard PO, daftar PO, tahapan/jadwal produksi, kalender jadwal, foto bukti tahap (Cloudflare R2) |
 | **Stok Klien** | Stok barang **titipan klien**: hirarki Klien → PO → Item → Mutasi masuk/keluar, riwayat mutasi ber-filter, ekspor PDF |
 | **Jatuh Tempo Klien** | Invoice klien: TOP dinamis (Cash/Net 30/60/90/Cicilan), tanggal jatuh tempo, cicilan bertahap, status lunas/belum lunas, laporan pemasukan & piutang + grafik omset bulanan, ekspor PDF *(khusus Superadmin)* |
 
@@ -37,12 +61,12 @@ Aturan bisnis 2 tool klien:
 
 - **Stok Klien** — stok item tidak boleh negatif; mutasi ditolak bila item berstatus
   *Selesai/Ditutup*; edit atau hapus mutasi otomatis merekonsiliasi kuantiti item;
-  hapus klien/PO ikut menghapus item & mutasi di bawahnya (cascade).
+  hapus klien/PO ikut menghapus item & mutasi di bawahnya (FK cascade).
 - **Jatuh Tempo Klien** — invoice ber-TOP `Cicilan` otomatis berubah menjadi **Lunas**
   ketika akumulasi cicilan ≥ nominal total; mengganti nama opsi TOP ikut memperbarui
   seluruh invoice yang memakai opsi lama; opsi `Cicilan` terkunci (tidak bisa diubah/dihapus);
   tombol **Hapus Semua** baru aktif setelah backup PDF diunduh.
-- Koleksi 2 tool ini **terpisah penuh** (`klien_*`, `tempo_invoices`) dari koleksi
+- Tabel 2 tool ini **terpisah penuh** (`klien_*`, `tempo_*`) dari tabel
   Stok SCA / HPP / PO Tracker, sehingga tidak ada risiko saling mengganggu.
 
 ---
@@ -58,6 +82,9 @@ Section terproteksi (**Laporan Detail**, **Log & User**, **Tutup Tahun**) bisa d
 Admin/PIC dengan **password akses sementara**, berlaku selama sesi login saat itu
 (dikirim ke API lewat header `X-Section-Password`).
 
+> Saat login, **pilih role yang sesuai akun**. Akun superadmin yang login dengan role *Admin/PIC*
+> akan ditolak.
+
 ---
 
 ## Arsitektur produksi
@@ -65,16 +92,16 @@ Admin/PIC dengan **password akses sementara**, berlaku selama sesi login saat it
 ```
                  Cloudflare DNS (scaportal.cloud)
                           │
-        ┌─────────────────┴──────────────────┐
+        ┌─────────────────┴──────────────────────────────────────────────┐
         │  VPS Biznet Gio — 2 vCPU · 4 GB RAM · 60 GB SSD · Ubuntu 22.04  │
-        │                                    │
+        │                                                                 │
         │  Coolify (Docker + Traefik, SSL Let's Encrypt otomatis)         │
         │  ├── app  : Next.js 15 (image Dockerfile, port 3000)            │
         │  │         https://app.scaportal.cloud  (contoh)                │
         │  ├── db   : MariaDB 11 (resource Coolify, Private network)      │
         │  │         mysql://mariadb:***@<host-internal>:3306/default     │
         │  └── pma  : phpMyAdmin → https://db.scaportal.cloud             │
-        └────────────────────────────────────┘
+        └─────────────────────────────────────────────────────────────────┘
                           │
                           └──► Cloudflare R2 (bucket `sca-po-photos`, foto tahap PO)
 ```
@@ -88,8 +115,11 @@ Admin/PIC dengan **password akses sementara**, berlaku selama sesi login saat it
 | Reverse proxy & SSL | Traefik (bawaan Coolify) | Sertifikat otomatis per domain |
 
 Estimasi pemakaian resource pada beban normal: RAM ±1,2 GB (Coolify ±500 MB, MariaDB ±300 MB, app ±150 MB,
-phpMyAdmin ±50 MB) dari 4 GB; disk ±10 GB (OS + Docker image) dari 60 GB — sisa ruang cukup untuk database
-bertahun-tahun karena foto disimpan di R2.
+phpMyAdmin ±50 MB) dari 4 GB; disk ±10 GB (OS + Docker image) dari 60 GB.
+
+**Security headers** (diset di `next.config.js`, berlaku untuk semua response): `Strict-Transport-Security`
+(1 tahun, includeSubDomains, preload), `X-Content-Type-Options: nosniff`, `X-Frame-Options: SAMEORIGIN`,
+`Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy`.
 
 ---
 
@@ -101,6 +131,7 @@ bertahun-tahun karena foto disimpan di R2.
 | Routing halaman | react-router-dom sebagai SPA di dalam catch-all route `app/[[...slug]]` |
 | API | Next.js Route Handlers (`app/api/**`), runtime Node.js |
 | Database | **MariaDB / MySQL** via `mysql2` (pool koneksi, transaksi, FK cascade). Skema di `src/server/schema.js`, dibuat otomatis saat start |
+| Object storage | **Cloudflare R2** (S3-compatible) untuk foto tahap PO |
 | Auth | JWT `jose` (HS256, 12 jam) + cookie httpOnly, hash password `bcryptjs` |
 | PDF | `pdf-lib` — tabel dengan header berulang & page-break, line/bar/komposisi chart. Murni JS, tanpa dependensi native |
 
@@ -135,7 +166,7 @@ bertahun-tahun karena foto disimpan di R2.
 │       ├── db.js                     # pool mysql2 + helper SQL (insertRow/updateRow/withTx)
 │       ├── schema.js                 # DDL 19 tabel (CREATE TABLE IF NOT EXISTS)
 │       ├── init.js                   # buat tabel & seed idempotent
-│       ├── users.js / logs.js / settings.js / hpp.js / po/repo.js  # akses tabel per modul
+│       ├── users.js / logs.js / settings.js / hpp.js / po/repo.js
 │       ├── auth.js                   # JWT, bcrypt, guard role/section
 │       ├── stock.js                  # perhitungan stok & harga
 │       ├── mutations.js              # validasi + aturan edit/hapus
@@ -144,7 +175,7 @@ bertahun-tahun karena foto disimpan di R2.
 ├── deploy/dummy_data.sql             # dump SQL data awal/dummy (impor lewat phpMyAdmin)
 ├── deploy/phpmyadmin.compose.yml     # phpMyAdmin untuk db.scaportal.cloud
 ├── package.json                      # aplikasi Next.js (root repo)
-├── next.config.js
+├── next.config.js                    # standalone output + security headers
 ├── tailwind.config.js
 ├── postcss.config.js
 ├── jsconfig.json
@@ -153,7 +184,7 @@ bertahun-tahun karena foto disimpan di R2.
 ├── .env.example
 ├── tests/test_core.sh                # smoke test API end-to-end (47 skenario)
 ├── backend/server.py                 # reverse proxy /api -> Next.js (khusus preview Emergent)
-├── frontend/package.json             # shim preview Emergent (meneruskan ke root)
+└── frontend/package.json             # shim preview Emergent (meneruskan ke root)
 ```
 
 > **Catatan 1:** aplikasi Next.js berada di **root repo**, jadi Base Directory di Coolify
@@ -162,18 +193,21 @@ bertahun-tahun karena foto disimpan di R2.
 > **Catatan 2:** folder halaman sengaja bernama `src/views`, **bukan** `src/pages`,
 > karena `src/pages` akan dianggap Pages Router oleh Next.js dan membuat build gagal.
 >
-> **Catatan 3:** `frontend/package.json` hanya shim untuk preview Emergent (supervisor
-> menjalankan `yarn start` di folder itu, lalu diteruskan ke root). Tidak dipakai di produksi/Docker.
+> **Catatan 3:** `backend/` dan `frontend/package.json` hanya shim untuk preview Emergent.
+> Tidak dipakai di produksi/Docker (sudah di-exclude lewat `.dockerignore`).
 
 ---
 
 ## Environment variables
 
+Semua env dibaca saat **runtime** (bukan build). Di Coolify: **Application → Environment Variables**,
+jangan centang *Build Variable*. Setelah menambah/mengubah env, wajib **Redeploy** (bukan hanya Restart).
+
 Wajib:
 
 | Key | Keterangan |
 | --- | --- |
-| `DATABASE_URL` | Connection string MariaDB/MySQL: `mysql://user:pass@host:3306/db` (Coolify: *MariaDB URL (internal)*) |
+| `DATABASE_URL` | Connection string MariaDB/MySQL: `mysql://user:pass@host:3306/db` — salin apa adanya dari Coolify → resource MariaDB → *MariaDB URL (internal)* |
 | `JWT_SECRET` | Kunci tanda tangan JWT — buat dengan `openssl rand -hex 32` |
 
 Opsional (punya nilai default, dipakai saat seed pertama):
@@ -181,10 +215,14 @@ Opsional (punya nilai default, dipakai saat seed pertama):
 | Key | Default |
 | --- | --- |
 | `SUPERADMIN_USERNAME` | `Jeffsca` |
-| `SUPERADMIN_PASSWORD` | `jeff3131` |
+| `SUPERADMIN_PASSWORD` | `jeff3131` — **wajib ganti di produksi** |
 | `TEMP_ACCESS_PASSWORD` | `superadminsementara` |
 | `OWNER_EMAIL` | *(kosong)* |
 | `NEXT_PUBLIC_API_BASE` | `/api` (isi hanya bila API dipisah dari frontend) |
+
+Cloudflare R2 (untuk foto PO — lihat [bagian R2](#cloudflare-r2)):
+`R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET_NAME`, `R2_PUBLIC_URL`.
+Bila salah satu kosong, aplikasi tetap jalan; hanya upload foto PO yang menampilkan *R2 belum dikonfigurasi*.
 
 Contoh lengkap ada di `.env.example`. **File `.env` tidak pernah di-commit.**
 
@@ -198,7 +236,8 @@ yarn install
 yarn dev                          # http://localhost:3000
 ```
 
-Butuh MariaDB/MySQL lokal, mis. `docker run -d -p 3306:3306 -e MARIADB_ROOT_PASSWORD=root -e MARIADB_DATABASE=sca_portal mariadb:11`
+Butuh MariaDB/MySQL lokal, mis.
+`docker run -d -p 3306:3306 -e MARIADB_ROOT_PASSWORD=root -e MARIADB_DATABASE=sca_portal mariadb:11`
 lalu `DATABASE_URL=mysql://root:root@127.0.0.1:3306/sca_portal`.
 Tabel, superadmin & password akses **dibuat otomatis** saat request API pertama.
 
@@ -211,33 +250,144 @@ yarn serve     # jalankan hasil build
 
 ---
 
-## Deploy ke VPS Biznet Gio (Coolify)
+## Deploy ke Coolify
 
-Ringkasan — langkah detail (MariaDB, phpMyAdmin, Cloudflare R2, domain, troubleshooting) ada di **[DEPLOY.md](./DEPLOY.md)**.
+### Prasyarat VPS (sekali saja, via SSH)
 
-1. Push repo ke GitHub (`Scaportaldev/Scaportal`), branch `main`.
-2. Coolify → **Project** → **+ New Resource** → **Databases → MariaDB** → Create. Salin **MariaDB URL (internal)**.
-3. **+ New Resource** → **Public Repository** → repo & branch `main` → **Build Pack: Dockerfile**, Port `3000`.
-4. **Environment Variables** aplikasi: `DATABASE_URL` (dari langkah 2), `JWT_SECRET`, `SUPERADMIN_*`,
-   `TEMP_ACCESS_PASSWORD`, `OWNER_EMAIL`, `R2_*` — lihat `.env.example`.
-5. **Domains**: `https://app.scaportal.cloud` (atau subdomain pilihan) → DNS A record ke IP VPS → **Deploy**.
-   SSL Let's Encrypt otomatis oleh Traefik bawaan Coolify. Tabel & superadmin dibuat otomatis saat start.
-6. Cek `https://app.scaportal.cloud/api/health` → `{"status":"ok"}` → login superadmin.
-7. **Services → phpMyAdmin** dengan `PMA_HOST=<host internal MariaDB>` dan domain `https://db.scaportal.cloud`
-   (lihat DEPLOY.md bagian 15).
-8. (Opsional, sekali saja) Impor data awal/dummy: phpMyAdmin → database `default` → **Import** →
-   unggah `deploy/dummy_data.sql`.
+```bash
+ufw allow OpenSSH && ufw allow 80/tcp && ufw allow 443/tcp && ufw allow 8000/tcp && ufw enable
+curl -fsSL https://cdn.coollabs.io/coolify/install.sh | bash
+```
+
+Buka `http://<IP-VPS>:8000`, buat akun admin, lalu **Settings → Instance domain** (mis. `https://coolify.scaportal.cloud`)
+dan tutup port 8000 setelah domain aktif. Hubungkan GitHub: **Sources → + Add → GitHub App** → install ke repo `Scaportaldev/Scaportal`.
+
+### Database
+
+1. **Project → + New Resource → Databases → MariaDB** → Create → **Start**.
+2. Salin **MariaDB URL (internal)** (format `mysql://mariadb:<pass>@<host>:3306/default`).
+   Biarkan resource **Private** (jangan expose port 3306 ke publik).
+3. Nyalakan **Backups** terjadwal (tab Backups → mis. harian `0 3 * * *`).
+
+### Aplikasi
+
+1. **+ New Resource → GitHub App / Public Repository** → repo `Scaportaldev/Scaportal`, branch `main`.
+2. Tab **General**:
+
+   | Field | Nilai |
+   | --- | --- |
+   | Build Pack | **Dockerfile** |
+   | Base Directory | `/` |
+   | Dockerfile Location | `/Dockerfile` |
+   | Ports Exposes | `3000` |
+   | Domains | `https://app.scaportal.cloud` (DNS A record → IP VPS) |
+
+3. Tab **Environment Variables**: `DATABASE_URL`, `JWT_SECRET`, `SUPERADMIN_*`, `TEMP_ACCESS_PASSWORD`,
+   `OWNER_EMAIL`, `R2_*` (lihat `.env.example`).
+4. Tab **Healthcheck**: Enable → `GET /api/health`, Port `3000`, Interval `30`, Timeout `5`, Retries `5`, Start period `40`.
+5. **Deploy**. Traefik menerbitkan SSL otomatis. Tabel & superadmin dibuat saat start.
+6. Cek `https://app.scaportal.cloud/api/health` → `{"status":"ok"}` → login superadmin (pilih role **Superadmin**).
+
+Setiap push/merge ke `main` memicu **auto-redeploy**. Redeploy manual: tombol **Redeploy** di halaman aplikasi.
 
 ### Checklist produksi
 
 - [ ] `JWT_SECRET` acak dan **berbeda** dari yang dipakai saat development.
-- [ ] `SUPERADMIN_PASSWORD` bukan nilai default.
-- [ ] Password MariaDB kuat (pakai yang digenerate Coolify) dan resource MariaDB tetap **Private** (tidak expose port 3306 ke publik).
-- [ ] Backup MariaDB terjadwal aktif di Coolify (resource MariaDB → **Backups**), idealnya ke S3/R2.
-- [ ] phpMyAdmin hanya diakses lewat HTTPS; pertimbangkan Cloudflare Access / IP allowlist.
-- [ ] `TEMP_ACCESS_PASSWORD` diganti, lalu bisa diubah lagi kapan pun dari
-      menu **Log & User → Password Akses** tanpa perlu redeploy.
+- [ ] `SUPERADMIN_PASSWORD` dan `TEMP_ACCESS_PASSWORD` bukan nilai default.
+- [ ] Password MariaDB memakai yang digenerate Coolify; resource MariaDB tetap **Private**.
+- [ ] Backup MariaDB terjadwal aktif (resource MariaDB → **Backups**), idealnya ke S3/R2.
+- [ ] phpMyAdmin hanya lewat HTTPS; pertimbangkan Cloudflare Access / IP allowlist, atau **Stop** saat tidak dipakai.
 - [ ] Token R2 dibatasi ke bucket `sca-po-photos` saja (Object Read & Write).
+- [ ] Cloudflare SSL mode **Full (strict)** bila proxy (awan oranye) dinyalakan.
+
+---
+
+## Cloudflare R2
+
+R2 dipakai **PO Tracker** untuk menyimpan foto bukti tahapan produksi. Upload dilakukan dari server
+(API Next.js) → tidak butuh CORS. Foto diakses publik lewat `R2_PUBLIC_URL`.
+
+1. **Aktifkan R2** — dash.cloudflare.com → **R2 Object Storage** → Get started (butuh metode pembayaran,
+   gratis di bawah 10 GB / 1 juta operasi tulis per bulan, egress gratis).
+2. **Buat bucket** — nama `sca-po-photos` (= `R2_BUCKET_NAME`), lokasi *Automatic* atau APAC.
+3. **Akses publik** — bucket → **Settings → Public access**:
+   - *Opsi A* — **R2.dev subdomain → Allow Access** → dapat `https://pub-xxxx.r2.dev`, atau
+   - *Opsi B* — **Custom Domains → Connect Domain** (mis. `foto.scaportal.cloud`, domain harus di Cloudflare).
+
+   Nilainya jadi `R2_PUBLIC_URL` (tanpa `/` di akhir).
+4. **API token** — R2 → **Manage R2 API Tokens → Create API token**: Permissions **Object Read & Write**,
+   *Apply to specific buckets only* → `sca-po-photos`, TTL Forever. Halaman hasil hanya tampil sekali — salin:
+   - Access Key ID → `R2_ACCESS_KEY_ID`
+   - Secret Access Key → `R2_SECRET_ACCESS_KEY`
+   - Endpoint `https://<ACCOUNT_ID>.r2.cloudflarestorage.com` → bagian `<ACCOUNT_ID>` = `R2_ACCOUNT_ID`
+5. Isi kelima env `R2_*` di Coolify → **Redeploy**.
+
+---
+
+## phpMyAdmin
+
+1. Cloudflare DNS: A record `db` → IP VPS.
+2. Coolify → **project yang sama dengan MariaDB** → **+ New Resource → Services → phpMyAdmin** → Create.
+3. **Environment Variables** service:
+
+   | Key | Value |
+   | --- | --- |
+   | `PMA_HOST` | host internal MariaDB (bagian antara `@` dan `:3306` pada *MariaDB URL (internal)*) |
+   | `PMA_PORT` | `3306` |
+   | `PMA_ABSOLUTE_URI` | `https://db.scaportal.cloud/` |
+   | `UPLOAD_LIMIT` | `256M` (opsional, untuk import SQL besar) |
+
+4. Tab **General → Domains** `https://db.scaportal.cloud` → Save → **Deploy**.
+5. Login: user `mariadb`, password = *Normal user password* dari resource MariaDB. Database aplikasi = `default`.
+
+Alternatif tanpa katalog: **+ New Resource → Docker Compose** → tempel isi
+[`deploy/phpmyadmin.compose.yml`](./deploy/phpmyadmin.compose.yml).
+
+> phpMyAdmin memberi akses penuh ke database. Batasi lewat Cloudflare Access / IP allowlist,
+> atau **Stop** service ini setelah selesai dan nyalakan hanya saat dibutuhkan.
+
+---
+
+## Database MariaDB
+
+Tabel dibuat otomatis saat aplikasi pertama kali menerima request (`src/server/init.js`, idempotent).
+Superadmin di-seed dari `SUPERADMIN_USERNAME` / `SUPERADMIN_PASSWORD`.
+
+| Modul | Tabel |
+| --- | --- |
+| Akun & sistem | `users`, `settings`, `activity_logs`, `audit_logs` |
+| Stok SCA | `paper_mutations`, `ink_mutations`, `other_mutations` |
+| Kalkulator HPP | `hpp_calculations` |
+| PO Tracker | `pos` ⟵ `po_logs`, `po_schedules`, `po_files` (FK cascade) |
+| Stok Klien | `klien_clients` ⟵ `klien_pos` ⟵ `klien_items` ⟵ `klien_mutations` (FK cascade) |
+| Jatuh Tempo | `tempo_invoices` ⟵ `tempo_installments`, `tempo_top_options` |
+
+### Impor data contoh / dummy
+
+`deploy/dummy_data.sql` berisi 839 baris (users, mutasi kertas/tinta/lainnya, PO, klien, invoice tempo, log).
+
+- **phpMyAdmin** → database `default` → tab **Import** → unggah `deploy/dummy_data.sql` → Import, **atau**
+- Terminal container MariaDB di Coolify: `mariadb -u mariadb -p default < deploy/dummy_data.sql`
+
+> Dump memakai `DROP TABLE IF EXISTS` + `CREATE TABLE`, jadi impor **menimpa** isi tabel yang ada.
+> Jangan dijalankan di database produksi. Untuk membersihkan data dummy: drop database `default` → buat ulang →
+> Redeploy app (tabel + superadmin dibuat otomatis).
+
+---
+
+## Backup & restore
+
+- **Otomatis** — Coolify → resource MariaDB → **Backups** → jadwal (mis. `0 3 * * *`), simpan lokal atau ke S3/R2.
+  Restore lewat **Import Backup** di tab yang sama.
+- **Manual** (Terminal resource MariaDB):
+
+  ```bash
+  mariadb-dump -u mariadb -p --single-transaction --no-tablespaces default > backup-$(date +%F).sql
+  mariadb -u mariadb -p default < backup-2026-01-01.sql
+  ```
+
+- **phpMyAdmin** — database `default` → **Export** (SQL) / **Import**.
+- **Foto R2** — Cloudflare R2 → bucket → Objects, atau `rclone` dengan endpoint S3.
 
 ---
 
@@ -310,27 +460,45 @@ Error selalu dikembalikan sebagai `{ "detail": "pesan dalam Bahasa Indonesia" }`
 ## Testing
 
 ```bash
-bash tests/test_core.sh
+bash tests/test_core.sh            # default: http://localhost:3000/api
+B=https://app.scaportal.cloud/api bash tests/test_core.sh
 ```
+
 47 skenario end-to-end: login & guard token, CRUD ketiga jenis mutasi, validasi
 stok tidak cukup, retur beserta referensi, filter & pencarian, dashboard,
 laporan stok & detail, log, CRUD user, proteksi section per role, 6 laporan PDF,
 ubah password akses, dan tutup tahun.
 
-Status terakhir (setelah migrasi ke MariaDB): regression test 92 skenario backend
-→ 89 lolos (3 sisanya ekspektasi test yang salah, perilaku aplikasi benar), 0 bug kritis,
-`yarn build` sukses, data produksi hasil migrasi identik dengan sumber (1.940 Rim / 284 Kg).
-
-### Data contoh 2 tool klien
+Cek security headers setelah deploy:
 
 ```bash
-node scripts/seed_klien_tempo.mjs           # tambah data contoh (aman dijalankan berulang)
-node scripts/seed_klien_tempo.mjs --wipe    # kosongkan dulu, lalu isi ulang
+curl -sI https://app.scaportal.cloud/ | grep -iE 'strict-transport|x-frame|x-content|referrer|permissions'
 ```
 
-Menghasilkan 5 klien, 6 PO, 10 item, 20 mutasi, dan 8 invoice (mencakup skenario
-lewat jatuh tempo, mendekati tempo, lunas, dan cicilan). Script ini **hanya** menyentuh
-koleksi `klien_*` dan `tempo_invoices`.
+---
+
+## Troubleshooting
+
+| Gejala | Penyebab | Solusi |
+| --- | --- | --- |
+| Build gagal: `yarn install --frozen-lockfile` error | `yarn.lock` tidak sinkron dengan `package.json` | `yarn install` lokal, commit `yarn.lock` baru, push |
+| Build gagal: *JavaScript heap out of memory* | RAM VPS < 2 GB | Tambah swap 2 GB atau upgrade VPS |
+| Traefik: **`no available server`** | Tidak ada container sehat — deploy terakhir *rolling back* | **Deployments** → log; penyebab tersering `DATABASE_URL` salah/kosong |
+| `[db] DATABASE_URL belum diset` + `ECONNREFUSED 127.0.0.1:3306` | Env `DATABASE_URL` tidak ada | Isi = *MariaDB URL (internal)* → **Redeploy** |
+| `getaddrinfo ENOTFOUND <host>` | Host internal MariaDB tidak bisa di-resolve (beda project/network) | Taruh app & MariaDB di project yang sama, atau centang *Connect To Predefined Network* |
+| `ER_ACCESS_DENIED_ERROR` / `Access denied for user 'mariadb'` | Password di `DATABASE_URL` aplikasi **berbeda** dengan password resource MariaDB saat ini (mis. password DB diganti tapi env app belum) | Salin ulang *MariaDB URL (internal)* apa adanya ke env aplikasi → **Redeploy** |
+| `ER_BAD_DB_ERROR: Unknown database` | Nama DB di akhir URL salah (default `default`) | Perbaiki bagian setelah `:3306/` |
+| Container *unhealthy* padahal app hidup | Healthcheck path/port salah | `/api/health`, port `3000`, start period ≥ 40 s |
+| *404 page not found* dari Traefik | DNS belum ke VPS, atau Domains belum `https://...` | `nslookup domain` → IP VPS; perbaiki Domains → Redeploy |
+| SSL tidak terbit | Port 80 tertutup, atau DNS masih Proxied saat penerbitan pertama | Buka 80/443; set DNS **DNS only** dulu → Restart |
+| *Too many redirects* | Cloudflare SSL mode **Flexible** | Ubah ke **Full (strict)** |
+| Login gagal padahal DB terhubung | Role yang dipilih tidak sesuai akun, atau `SUPERADMIN_*` diubah tanpa redeploy | Pilih role **Superadmin** untuk akun superadmin; samakan env → **Redeploy** |
+| Upload foto PO: `R2 config: ... belum diset` | Env `R2_*` kosong | Lengkapi → Redeploy |
+| Foto ter-upload tapi 403/404 | Public access bucket belum aktif / `R2_PUBLIC_URL` salah | Bucket → Settings → Public access; URL tanpa `/` di akhir |
+| Upload foto `AccessDenied` | Token R2 tanpa izin Write / salah bucket | Buat token **Object Read & Write** untuk `sca-po-photos` |
+| phpMyAdmin: `php_network_getaddresses` | `PMA_HOST` salah / beda network | Isi host internal MariaDB; pastikan satu project |
+
+Log runtime: Coolify → aplikasi → **Logs**. Log build: **Deployments** → klik deployment.
 
 ---
 
@@ -338,49 +506,13 @@ koleksi `klien_*` dan `tempo_invoices`.
 
 Ingress preview Emergent mengarahkan semua request `/api/*` ke port **8001**,
 sedangkan Next.js berjalan di port **3000**. Karena itu `backend/server.py`
-hanya berisi reverse proxy tipis (`/api/*` → `localhost:3000/api/*`).
-
-`frontend/package.json` hanya berisi shim (`cd .. && yarn start`) supaya supervisor
-Emergent yang menjalankan `yarn start` di folder `frontend/` tetap mem-boot Next.js di root.
+hanya berisi reverse proxy tipis (`/api/*` → `localhost:3000/api/*`), dan
+`frontend/package.json` hanya shim (`cd .. && yarn start`) supaya supervisor Emergent
+tetap mem-boot Next.js di root.
 
 > **Jangan jalankan `yarn build` saat dev server (`next dev`) masih hidup.**
-> Build produksi menimpa folder `.next` milik dev server dan menyebabkan error
-> `Cannot find module './xxxx.js'` pada semua route. Bila terjadi:
+> Build menimpa folder `.next` milik dev server dan menyebabkan error
+> `Cannot find module './xxxx.js'`. Bila terjadi:
 > `supervisorctl stop frontend && rm -rf .next && supervisorctl start frontend`.
 
 Di produksi (Docker/Coolify) proxy ini **tidak dipakai** — Next.js melayani `/api/*` secara native.
-
-
----
-
-## Database MariaDB
-
-Tabel dibuat otomatis saat aplikasi pertama kali menerima request (`src/server/init.js`).
-Struktur bisa dilihat/diedit lewat **phpMyAdmin** (one-click service di Coolify).
-
-| Modul | Tabel |
-| --- | --- |
-| Akun & sistem | `users`, `settings`, `activity_logs`, `audit_logs` |
-| Stok SCA | `paper_mutations`, `ink_mutations`, `other_mutations` |
-| Kalkulator HPP | `hpp_calculations` |
-| PO Tracker | `pos` ⟵ `po_logs`, `po_schedules`, `po_files` (FK cascade) |
-| Stok Klien | `klien_clients` ⟵ `klien_pos` ⟵ `klien_items` ⟵ `klien_mutations` (FK cascade) |
-| Jatuh Tempo | `tempo_invoices` ⟵ `tempo_installments`, `tempo_top_options` |
-
-### Impor data awal / dummy
-
-Tabel dibuat otomatis oleh aplikasi saat start (idempotent), jadi database kosong pun langsung jalan —
-superadmin di-seed dari `SUPERADMIN_USERNAME` / `SUPERADMIN_PASSWORD`.
-
-Bila ingin mengisi data contoh (839 baris: users, mutasi kertas/tinta/lainnya, PO, klien, invoice tempo, log):
-
-- **phpMyAdmin** (`https://db.scaportal.cloud`) → pilih database `default` → tab **Import** →
-  unggah `deploy/dummy_data.sql` → Import.
-- **atau** lewat Terminal container MariaDB di Coolify:
-
-```bash
-mariadb -u mariadb -p default < deploy/dummy_data.sql
-```
-
-> Dump memakai `DROP TABLE IF EXISTS` + `CREATE TABLE`, jadi impor akan **menimpa** isi tabel yang ada.
-> Jangan dijalankan di database yang sudah berisi data produksi.

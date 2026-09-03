@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Smoke test end-to-end API Next.js (dijalankan via proxy port 8001).
+# Smoke test end-to-end API Next.js.
+# Default: Next.js lokal (port 3000). Override: B=https://app.scaportal.cloud/api bash tests/test_core.sh
 set -u
-B="http://localhost:8001/api"
+B="${B:-http://localhost:3000/api}"
 PASS=0; FAIL=0
 ok(){ echo "  PASS $1"; PASS=$((PASS+1)); }
 ko(){ echo "  FAIL $1 -> $2"; FAIL=$((FAIL+1)); }
