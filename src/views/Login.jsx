@@ -5,8 +5,7 @@ import { useAuth, apiError } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { LogIn, ShieldCheck, Users, Loader2 } from "lucide-react";
+import { LogIn, Loader2 } from "lucide-react";
 import Logo from "@/components/Logo";
 
 const BG = "https://images.unsplash.com/photo-1587293852726-70cdb56c2866?crop=entropy&cs=srgb&fm=jpg&q=85&w=1400";
@@ -15,7 +14,6 @@ export default function Login() {
   const { user, login } = useAuth();
   const navigate = useNavigate();
   const [username, setUsername] = useState("");
-  const [role, setRole] = useState("admin");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -25,7 +23,7 @@ export default function Login() {
     e.preventDefault();
     setLoading(true);
     try {
-      await login(username.trim(), password, role);
+      await login(username.trim(), password);
       toast.success("Berhasil masuk.");
       navigate("/");
     } catch (err) { toast.error(apiError(err, "Login gagal")); }
@@ -62,32 +60,17 @@ export default function Login() {
             <span className="font-display text-xl font-extrabold tracking-tight">SCA PORTAL</span>
           </div>
           <h2 className="font-display text-3xl font-extrabold tracking-tight">Masuk</h2>
-          <p className="mt-1 text-sm text-muted-foreground">Pilih role & gunakan akun yang telah terdaftar.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Gunakan akun yang telah didaftarkan oleh Superadmin.</p>
 
           <form onSubmit={submit} className="mt-8 space-y-4">
             <div className="space-y-1.5">
               <Label htmlFor="username">Nama User</Label>
-              <Input id="username" data-testid="login-username" value={username}
+              <Input id="username" data-testid="login-username" value={username} autoComplete="username"
                 onChange={(e) => setUsername(e.target.value)} placeholder="cth: Jeffsca" autoFocus />
             </div>
             <div className="space-y-1.5">
-              <Label>Pilih Role</Label>
-              <Select value={role} onValueChange={setRole}>
-                <SelectTrigger data-testid="login-role"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="superadmin">
-                    <span className="flex items-center gap-2"><ShieldCheck className="h-4 w-4 text-primary" /> Superadmin</span>
-                  </SelectItem>
-                  <SelectItem value="admin">
-                    <span className="flex items-center gap-2"><Users className="h-4 w-4 text-muted-foreground" /> Admin / PIC</span>
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              <p className="text-[11px] text-muted-foreground pt-0.5">Role yang dipilih harus cocok dengan akun.</p>
-            </div>
-            <div className="space-y-1.5">
               <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" data-testid="login-password" value={password}
+              <Input id="password" type="password" data-testid="login-password" value={password} autoComplete="current-password"
                 onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" />
             </div>
             <Button type="submit" className="w-full gap-2 group" data-testid="login-submit" disabled={loading}>

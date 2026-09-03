@@ -67,7 +67,7 @@ export default function NavUser({ user, isSuper, lang, setLang, onLogout }) {
           <DropdownMenuSeparator />
           <DropdownMenuItem disabled className="opacity-100">
             {isSuper ? <ShieldCheck className="mr-2 h-4 w-4 text-primary" /> : <Users className="mr-2 h-4 w-4" />}
-            <span className="text-xs font-medium">{isSuper ? "Superadmin" : "Admin / PIC"}</span>
+            <span className="text-xs font-medium">{isSuper ? "Superadmin" : "Admin"}</span>
           </DropdownMenuItem>
 
           <DropdownMenuSeparator />

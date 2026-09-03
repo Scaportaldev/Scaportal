@@ -1,5 +1,6 @@
-import { createContext, useContext, useEffect, useState, useCallback } from "react";
+import { createContext, useContext, useEffect, useState, useCallback, useMemo } from "react";
 import api, { setSectionPassword } from "@/lib/api";
+import { effectivePermissions } from "@/lib/permissions";
 
 const AuthContext = createContext(null);
 
@@ -10,6 +11,21 @@ export function apiError(e, fallback = "Terjadi kesalahan. Coba lagi.") {
   if (Array.isArray(d)) return d.map((x) => x?.msg || JSON.stringify(x)).join(" ");
   if (d?.msg) return d.msg;
   return String(d);
+}
+
+/**
+ * Urutan halaman "beranda" berdasarkan toggle yang ON. Dipakai untuk redirect
+ * setelah login dan saat user membuka route yang tidak diizinkan.
+ */
+export function homePathFor(perms) {
+  if (!perms) return "/login";
+  if (perms.canStok) return "/stok";
+  if (perms.canPo) return "/po";
+  if (perms.canStokKlien) return "/stok-klien";
+  if (perms.canTempo) return "/tempo";
+  if (perms.canHpp) return "/hpp";
+  if (perms.canStokLogs) return "/stok/log-user";
+  return "/tidak-ada-akses";
 }
 
 export function AuthProvider({ children }) {
@@ -28,8 +44,9 @@ export function AuthProvider({ children }) {
 
   useEffect(() => { loadMe(); }, [loadMe]);
 
-  const login = async (username, password, role) => {
-    const { data } = await api.post("/auth/login", { username, password, role });
+  // Login hanya username + password; role & hak akses datang dari server.
+  const login = async (username, password) => {
+    const { data } = await api.post("/auth/login", { username, password });
     if (data.token) {
       localStorage.setItem("stokku_token", data.token);
       localStorage.setItem("sca_token", data.token);
@@ -56,22 +73,33 @@ export function AuthProvider({ children }) {
   };
 
   const isSuper = user?.role === "superadmin";
-  const perms = {
-    canStokDashboard: !!user,
-    canStokMutations: !!user,
-    canStokReport: !!user,
-    canStokDetail: isSuper,     // Admin/PIC TIDAK bisa akses Laporan Detail
-    canStokLogs: isSuper,       // via section-lock existing (Superadmin bebas)
-    canStokYearClose: isSuper,
-    canHpp: isSuper,            // HPP HANYA Superadmin
-    canPo: !!user,              // PO Tracker semua role
-    canStokKlien: !!user,       // Stok Klien: Superadmin + Admin/PIC
-    canTempo: isSuper,          // Jatuh Tempo Klien HANYA Superadmin (berisi nominal Rupiah)
-    canUsers: isSuper,          // Register user hanya Superadmin
-  };
+
+  // Permission efektif: superadmin semua ON, user lain sesuai toggle dari server.
+  const perms = useMemo(() => {
+    const p = effectivePermissions(user);
+    const on = (k) => !!user && !!p[k];
+    return {
+      raw: p,
+      canStok: on("stok"),
+      canStokDashboard: on("stok"),
+      canStokMutations: on("stok"),
+      canStokReport: on("stok"),
+      canStokDetail: on("stok_detail"),      // Laporan Detail + semua nominal rupiah Stok SCA
+      canStokPdf: on("stok_pdf"),            // Tombol download PDF di Stok SCA
+      canStokYearClose: on("stok_tutup_tahun"),
+      canStokLogs: on("logs"),               // Log aktivitas & audit
+      canHpp: on("hpp"),
+      canPo: on("po"),
+      canStokKlien: on("klien"),
+      canTempo: on("tempo"),
+      canUsers: isSuper,                     // Manajemen user tetap khusus Superadmin
+    };
+  }, [user, isSuper]);
+
+  const homePath = homePathFor(user ? perms : null);
 
   return (
-    <AuthContext.Provider value={{ user, setUser, login, logout, sectionUnlocked, unlockSection, perms }}>
+    <AuthContext.Provider value={{ user, setUser, login, logout, sectionUnlocked, unlockSection, perms, isSuper, homePath }}>
       {children}
     </AuthContext.Provider>
   );

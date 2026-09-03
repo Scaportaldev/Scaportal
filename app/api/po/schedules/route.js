@@ -1,5 +1,5 @@
 import { handle, json, readJson, HttpError } from "@/server/http";
-import { requireAuth } from "@/server/auth";
+import { requirePerm } from "@/server/auth";
 import { nowIso } from "@/server/db";
 import { getPo, listSchedules, insertSchedule } from "@/server/po/repo";
 import { STAGE_NAMES } from "@/server/po/stages";
@@ -8,12 +8,12 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export const GET = handle(async (req) => {
-  await requireAuth(req);
+  await requirePerm(req, "po");
   return json(await listSchedules(3000));
 });
 
 export const POST = handle(async (req) => {
-  await requireAuth(req);
+  await requirePerm(req, "po");
   const body = await readJson(req);
   const poId = String(body.po_id || "");
   const stageNumber = Number(body.stage_number);

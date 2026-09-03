@@ -1,17 +1,17 @@
 import { handle, json, readJson, HttpError, qp } from "@/server/http";
-import { requireAuth } from "@/server/auth";
+import { requirePerm } from "@/server/auth";
 import { newId, nowIso, getKlienOr404, listKlienPos, findKlienPoDup, insertKlienPo } from "@/server/klien";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export const GET = handle(async (req) => {
-  await requireAuth(req);
+  await requirePerm(req, "klien");
   return json(await listKlienPos(qp(req, "klien_id")));
 });
 
 export const POST = handle(async (req) => {
-  await requireAuth(req);
+  await requirePerm(req, "klien");
   const body = await readJson(req);
   const klienId = String(body?.klien_id ?? "").trim();
   const noPo = String(body?.no_po ?? "").trim();

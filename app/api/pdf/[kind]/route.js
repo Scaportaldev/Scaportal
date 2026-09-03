@@ -1,5 +1,6 @@
 import { handle, pdfResponse, qp, HttpError } from "@/server/http";
-import { getCurrentUser, requireSectionAccess } from "@/server/auth";
+import { requirePerm, requireSectionAccess } from "@/server/auth";
+import { hasPermission } from "@/lib/permissions";
 import { currentYear } from "@/server/db";
 import { allYear, computeStock, computeDetail } from "@/server/reports";
 import { NAME_FIELD } from "@/server/mutations";
@@ -38,6 +39,12 @@ const MUTATION_KINDS = {
   "other-mutations": { type: "other", builder: otherMutationsPdf, file: "laporan-mutasi-lain.pdf" },
 };
 
+/** PDF Stok SCA boleh diunduh bila toggle "Download PDF" ON, atau user punya akses Tutup Tahun
+ *  (proses tutup tahun mewajibkan unduh laporan dahulu). Superadmin selalu boleh. */
+function canPdf(u) {
+  return hasPermission(u, "stok_pdf") || hasPermission(u, "stok_tutup_tahun");
+}
+
 export const GET = handle(async (req, { params }) => {
   const { kind } = await params;
   const start = qp(req, "start");
@@ -45,7 +52,8 @@ export const GET = handle(async (req, { params }) => {
   const label = periodLabel(start, end);
 
   if (MUTATION_KINDS[kind]) {
-    await getCurrentUser(req);
+    const u = await requirePerm(req, "stok");
+    if (!canPdf(u)) throw new HttpError(403, "Anda tidak memiliki akses download PDF");
     const cfg = MUTATION_KINDS[kind];
     const rows = filterAsc(
       await allYear(cfg.type, currentYear()),
@@ -56,7 +64,8 @@ export const GET = handle(async (req, { params }) => {
   }
 
   if (kind === "stock-ringkas") {
-    await getCurrentUser(req);
+    const u = await requirePerm(req, "stok");
+    if (!canPdf(u)) throw new HttpError(403, "Anda tidak memiliki akses download PDF");
     const stock = await computeStock();
     return pdfResponse(
       await stockSummaryPdf(stock, `Tahun ${currentYear()}`),
@@ -65,13 +74,19 @@ export const GET = handle(async (req, { params }) => {
   }
 
   if (kind === "detail") {
-    await requireSectionAccess(req);
+    const u = await requireSectionAccess(req, "stok_detail");
+    if (!canPdf(u)) throw new HttpError(403, "Anda tidak memiliki akses download PDF");
     const detail = await computeDetail(start, end);
     return pdfResponse(await detailReportPdf(detail, label), "laporan-detail.pdf");
   }
 
   if (kind === "stock-nominal") {
-    await requireSectionAccess(req);
+    // Dipakai Laporan Detail maupun Tutup Tahun (langkah 1 wajib unduh laporan nominal).
+    const u = await requireSectionAccess(req);
+    if (!hasPermission(u, "stok_detail") && !hasPermission(u, "stok_tutup_tahun")) {
+      throw new HttpError(403, "Anda tidak memiliki akses ke tools ini");
+    }
+    if (!canPdf(u)) throw new HttpError(403, "Anda tidak memiliki akses download PDF");
     const [stock, detail] = await Promise.all([computeStock(), computeDetail(start, end)]);
     return pdfResponse(
       await stockSummaryPdf(stock, label, detail),

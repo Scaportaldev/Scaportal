@@ -38,7 +38,7 @@ export default function MutationsPage({ type }) {
   const isPaper = type === "paper";
   const isInk = type === "ink";
   const isOther = type === "other";
-  const { user } = useAuth();
+  const { user, perms } = useAuth();
   const [period, setPeriod] = useState({ start: "", end: "" });
   const [fJenis, setFJenis] = useState("all");
   const [fTrx, setFTrx] = useState("all");
@@ -171,7 +171,9 @@ export default function MutationsPage({ type }) {
       pageHeaderAction={(
         <>
           <TableViewOptions columns={columnDefs} visible={visible} onToggle={toggleCol} />
-          <Button variant="outline" className="gap-2" data-testid="download-pdf-button" onClick={doDownload}><FileDown className="h-4 w-4" /> PDF</Button>
+          {perms.canStokPdf && (
+            <Button variant="outline" className="gap-2" data-testid="download-pdf-button" onClick={doDownload}><FileDown className="h-4 w-4" /> PDF</Button>
+          )}
           <Button className="gap-2" data-testid="add-mutation-button" onClick={openAdd}><Plus className="h-4 w-4" /> Tambah Mutasi</Button>
         </>
       )}

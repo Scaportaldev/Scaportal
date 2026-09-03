@@ -1,17 +1,17 @@
 import { handle, json, readJson, HttpError } from "@/server/http";
-import { requireSuperadmin } from "@/server/auth";
+import { requirePerm } from "@/server/auth";
 import { ensureTopSeed, saveTopOptions, renameTopInInvoices } from "@/server/tempo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export const GET = handle(async (req) => {
-  await requireSuperadmin(req);
+  await requirePerm(req, "tempo");
   return json({ values: await ensureTopSeed() });
 });
 
 export const POST = handle(async (req) => {
-  await requireSuperadmin(req);
+  await requirePerm(req, "tempo");
   const body = await readJson(req);
   const v = String(body?.value ?? "").trim();
   if (!v) throw new HttpError(400, "Nilai opsi tidak boleh kosong");
@@ -21,7 +21,7 @@ export const POST = handle(async (req) => {
 });
 
 export const PUT = handle(async (req) => {
-  await requireSuperadmin(req);
+  await requirePerm(req, "tempo");
   const body = await readJson(req);
   const old = String(body?.old_value ?? "");
   const next = String(body?.new_value ?? "").trim();

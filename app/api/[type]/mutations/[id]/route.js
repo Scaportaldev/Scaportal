@@ -1,5 +1,5 @@
 import { handle, json, readJson, HttpError } from "@/server/http";
-import { getCurrentUser, logAudit } from "@/server/auth";
+import { requirePerm, logAudit } from "@/server/auth";
 import { nowIso } from "@/server/db";
 import {
   buildDoc, assertStockAvailable, canModify, getMutation, updateMutation, deleteMutation,
@@ -15,7 +15,7 @@ async function loadOrFail(type, id) {
 }
 
 export const PUT = handle(async (req, { params }) => {
-  const current = await getCurrentUser(req);
+  const current = await requirePerm(req, "stok");
   const { type, id } = await params;
   const existing = await loadOrFail(type, id);
 
@@ -33,7 +33,7 @@ export const PUT = handle(async (req, { params }) => {
 });
 
 export const DELETE = handle(async (req, { params }) => {
-  const current = await getCurrentUser(req);
+  const current = await requirePerm(req, "stok");
   const { type, id } = await params;
   const existing = await loadOrFail(type, id);
 

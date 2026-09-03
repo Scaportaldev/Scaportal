@@ -1,5 +1,5 @@
 import { handle, json } from "@/server/http";
-import { requireAuth } from "@/server/auth";
+import { requirePerm } from "@/server/auth";
 import { listPos } from "@/server/po/repo";
 import { computeStatus } from "@/server/po/stages";
 
@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export const GET = handle(async (req) => {
-  await requireAuth(req);
+  await requirePerm(req, "po");
   const pos = await listPos({ limit: 100000 });
   const counts = {
     waiting_1: 0, waiting_2: 0, waiting_3: 0,

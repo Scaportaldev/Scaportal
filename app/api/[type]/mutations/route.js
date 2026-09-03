@@ -1,5 +1,5 @@
 import { handle, json, qp, readJson } from "@/server/http";
-import { getCurrentUser } from "@/server/auth";
+import { requirePerm } from "@/server/auth";
 import {
   buildDoc, assertStockAvailable, filterRows, stampCreate, listMutations, insertMutation,
 } from "@/server/mutations";
@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export const GET = handle(async (req, { params }) => {
-  await getCurrentUser(req);
+  await requirePerm(req, "stok");
   const { type } = await params;
 
   const year = qp(req, "year");
@@ -26,7 +26,7 @@ export const GET = handle(async (req, { params }) => {
 });
 
 export const POST = handle(async (req, { params }) => {
-  const current = await getCurrentUser(req);
+  const current = await requirePerm(req, "stok");
   const { type } = await params;
   const body = await readJson(req);
 

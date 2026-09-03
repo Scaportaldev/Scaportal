@@ -13,7 +13,7 @@ Antarmuka sepenuhnya Bahasa Indonesia, responsive, mendukung mode terang & gelap
 ## Daftar isi
 
 1. [Fitur](#fitur)
-2. [Role & akses](#role--akses)
+2. [Role & hak akses per-user](#role--hak-akses-per-user)
 3. [Arsitektur produksi](#arsitektur-produksi)
 4. [Stack](#stack)
 5. [Struktur project](#struktur-project)
@@ -71,19 +71,35 @@ Aturan bisnis 2 tool klien:
 
 ---
 
-## Role & akses
+## Role & hak akses per-user
 
-| Role | Akses |
-| --- | --- |
-| **Superadmin** | Semua modul, termasuk semua nominal rupiah dan kedua tool klien. Tanpa password tambahan |
-| **Admin/PIC** | Dashboard, semua Mutasi, Laporan Stok, PO Tracker, **Stok Klien**. Nominal rupiah **disembunyikan** (kartu tampil "Terkunci"). **Tidak** punya akses Kalkulator HPP & Jatuh Tempo Klien |
+Login hanya dengan **username + password** (tidak ada pilihan role). Hak akses ditentukan per-user
+lewat **toggle per-tools** yang disimpan di kolom JSON `users.permissions` dan diatur Superadmin dari
+**Log & User → Manajemen User → ikon Hak Akses**.
 
-Section terproteksi (**Laporan Detail**, **Log & User**, **Tutup Tahun**) bisa dibuka oleh
-Admin/PIC dengan **password akses sementara**, berlaku selama sesi login saat itu
-(dikirim ke API lewat header `X-Section-Password`).
+| Toggle | Key | Cakupan |
+| --- | --- | --- |
+| Stok SCA | `stok` | Dashboard, Mutasi Kertas/Tinta/Lain, Laporan Stok |
+| ↳ Laporan Detail & nominal harga | `stok_detail` | Laporan Detail, semua nilai rupiah (kartu nominal dashboard, PDF nominal) |
+| ↳ Download PDF laporan | `stok_pdf` | Tombol/endpoint PDF Stok SCA |
+| ↳ Tutup Tahun | `stok_tutup_tahun` | Reset data tahun berjalan (otomatis boleh unduh PDF yang diwajibkan) |
+| PO Tracker | `po` | Seluruh modul PO |
+| Stok Klien | `klien` | Seluruh modul Stok Klien |
+| Jatuh Tempo Klien | `tempo` | Seluruh modul invoice/piutang |
+| Kalkulator HPP | `hpp` | Kalkulator HPP |
+| Log Aktivitas & Audit | `logs` | Log login/logout & audit (manajemen user tetap khusus Superadmin) |
 
-> Saat login, **pilih role yang sesuai akun**. Akun superadmin yang login dengan role *Admin/PIC*
-> akan ditolak.
+Aturan:
+
+- **Superadmin** selalu punya akses penuh; toggle-nya terkunci ON dan tidak bisa diubah (API balas 400).
+- User lain (role `admin`) default **semua OFF** sampai dinyalakan Superadmin. Sub-toggle otomatis OFF bila induknya OFF.
+- Tools yang OFF: **menu hilang dari sidebar**, URL langsung di-redirect ke halaman pertama yang diizinkan
+  (atau halaman *Belum Ada Akses* bila kosong), dan API balas `403 {"detail":"Anda tidak memiliki akses ke tools ini"}`.
+- Perubahan toggle berlaku saat user memuat ulang halaman (`/api/auth/me` mengembalikan `permissions` terbaru).
+
+Lapisan tambahan: section sensitif (**Laporan Detail**, **Log**, **Tutup Tahun**) untuk user non-superadmin
+tetap meminta **password akses sementara** (header `X-Section-Password`) meski toggle-nya sudah ON.
+Password ini diubah Superadmin dari Log & User.
 
 ---
 
@@ -286,7 +302,7 @@ dan tutup port 8000 setelah domain aktif. Hubungkan GitHub: **Sources → + Add 
    `OWNER_EMAIL`, `R2_*` (lihat `.env.example`).
 4. Tab **Healthcheck**: Enable → `GET /api/health`, Port `3000`, Interval `30`, Timeout `5`, Retries `5`, Start period `40`.
 5. **Deploy**. Traefik menerbitkan SSL otomatis. Tabel & superadmin dibuat saat start.
-6. Cek `https://app.scaportal.cloud/api/health` → `{"status":"ok"}` → login superadmin (pilih role **Superadmin**).
+6. Cek `https://app.scaportal.cloud/api/health` → `{"status":"ok"}` → login superadmin.
 
 Setiap push/merge ke `main` memicu **auto-redeploy**. Redeploy manual: tombol **Redeploy** di halaman aplikasi.
 
@@ -492,7 +508,7 @@ curl -sI https://app.scaportal.cloud/ | grep -iE 'strict-transport|x-frame|x-con
 | *404 page not found* dari Traefik | DNS belum ke VPS, atau Domains belum `https://...` | `nslookup domain` → IP VPS; perbaiki Domains → Redeploy |
 | SSL tidak terbit | Port 80 tertutup, atau DNS masih Proxied saat penerbitan pertama | Buka 80/443; set DNS **DNS only** dulu → Restart |
 | *Too many redirects* | Cloudflare SSL mode **Flexible** | Ubah ke **Full (strict)** |
-| Login gagal padahal DB terhubung | Role yang dipilih tidak sesuai akun, atau `SUPERADMIN_*` diubah tanpa redeploy | Pilih role **Superadmin** untuk akun superadmin; samakan env → **Redeploy** |
+| Login gagal padahal DB terhubung | `SUPERADMIN_*` diubah tanpa redeploy, atau user dinonaktifkan | Samakan env → **Redeploy**; cek status user di Log & User |
 | Upload foto PO: `R2 config: ... belum diset` | Env `R2_*` kosong | Lengkapi → Redeploy |
 | Foto ter-upload tapi 403/404 | Public access bucket belum aktif / `R2_PUBLIC_URL` salah | Bucket → Settings → Public access; URL tanpa `/` di akhir |
 | Upload foto `AccessDenied` | Token R2 tanpa izin Write / salah bucket | Buat token **Object Read & Write** untuk `sca-po-photos` |

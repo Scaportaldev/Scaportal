@@ -57,30 +57,33 @@ export default function AppShell() {
 
   const isSuper = user?.role === "superadmin";
 
-  const stokMenu = [
-    { to: "/stok", label: "Dashboard", icon: LayoutDashboard, end: true, show: perms.canStokDashboard },
-    { to: "/stok/kertas", label: "Mutasi Kertas", icon: FileStack, show: perms.canStokMutations },
-    { to: "/stok/tinta", label: "Mutasi Tinta", icon: Droplets, show: perms.canStokMutations },
-    { to: "/stok/lainnya", label: "Mutasi Lain", icon: Package, show: perms.canStokMutations },
-    { to: "/stok/laporan-stok", label: "Laporan Stok", icon: ClipboardList, show: perms.canStokReport },
-    { to: "/stok/laporan-detail", label: "Laporan Detail", icon: BarChart3, locked: true, show: perms.canStokDetail },
-    { to: "/stok/tutup-tahun", label: "Tutup Tahun", icon: CalendarX, locked: true, show: perms.canStokYearClose },
-  ].filter((m) => m.show);
+  const stokMenu = perms.canStok
+    ? [
+        { to: "/stok", label: "Dashboard", icon: LayoutDashboard, end: true },
+        { to: "/stok/kertas", label: "Mutasi Kertas", icon: FileStack },
+        { to: "/stok/tinta", label: "Mutasi Tinta", icon: Droplets },
+        { to: "/stok/lainnya", label: "Mutasi Lain", icon: Package },
+        { to: "/stok/laporan-stok", label: "Laporan Stok", icon: ClipboardList },
+        { to: "/stok/laporan-detail", label: "Laporan Detail", icon: BarChart3, locked: true, show: perms.canStokDetail },
+        { to: "/stok/tutup-tahun", label: "Tutup Tahun", icon: CalendarX, locked: true, show: perms.canStokYearClose },
+      ].filter((m) => m.show !== false)
+    : [];
 
   // Ditempatkan terpisah di pojok kiri bawah sidebar (di atas kartu user).
   const logUserItem = perms.canStokLogs
-    ? { to: "/stok/log-user", label: "Log & User", icon: Users, locked: true }
+    ? { to: "/stok/log-user", label: isSuper ? "Log & User" : "Log Aktivitas", icon: Users, locked: true }
     : null;
 
-  const poMenu = [
-    { to: "/po", label: "Dashboard PO", icon: LayoutDashboard, end: true },
-    { to: "/po/pos", label: "Daftar PO", icon: ListTodo },
-    { to: "/po/kalender", label: "Kalender Jadwal", icon: CalendarDays },
-  ];
+  const poMenu = perms.canPo
+    ? [
+        { to: "/po", label: "Dashboard PO", icon: LayoutDashboard, end: true },
+        { to: "/po/pos", label: "Daftar PO", icon: ListTodo },
+        { to: "/po/kalender", label: "Kalender Jadwal", icon: CalendarDays },
+      ]
+    : [];
 
   const hppMenu = perms.canHpp ? [{ to: "/hpp", label: "Kalkulator HPP", icon: Calculator, end: true }] : [];
 
-  // Tool baru: Stok Klien (Superadmin + Admin/PIC)
   const klienMenu = perms.canStokKlien
     ? [
         { to: "/stok-klien", label: "Dashboard Stok Klien", icon: Boxes, end: true },
@@ -88,13 +91,14 @@ export default function AppShell() {
       ]
     : [];
 
-  // Tool baru: Jatuh Tempo Klien (Superadmin only — memuat nominal Rupiah)
   const tempoMenu = perms.canTempo
     ? [
         { to: "/tempo", label: "Daftar Invoice", icon: Receipt, end: true },
         { to: "/tempo/laporan", label: "Laporan Jatuh Tempo", icon: PieChart },
       ]
     : [];
+
+  const noTools = !stokMenu.length && !poMenu.length && !klienMenu.length && !tempoMenu.length && !hppMenu.length && !logUserItem;
 
   const NavItem = ({ item }) => (
     <NavLink to={item.to} end={item.end}
@@ -123,12 +127,26 @@ export default function AppShell() {
           <div className="mt-1 text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Stok • PO • Klien</div>
         </div>
       </div>
-      <nav className="flex-1 space-y-0.5 p-3 overflow-y-auto">
-        <SectionHeader label="Laporan Stok SCA" />
-        {stokMenu.map((item) => <NavItem key={item.to} item={item} />)}
+      <nav className="flex-1 space-y-0.5 p-3 overflow-y-auto" data-testid="sidebar-nav">
+        {noTools && (
+          <p className="px-3 py-4 text-xs text-muted-foreground" data-testid="sidebar-no-tools">
+            Belum ada tools yang diaktifkan untuk akun ini.
+          </p>
+        )}
 
-        <SectionHeader label="Tracking PO" />
-        {poMenu.map((item) => <NavItem key={item.to} item={item} />)}
+        {stokMenu.length > 0 && (
+          <>
+            <SectionHeader label="Laporan Stok SCA" />
+            {stokMenu.map((item) => <NavItem key={item.to} item={item} />)}
+          </>
+        )}
+
+        {poMenu.length > 0 && (
+          <>
+            <SectionHeader label="Tracking PO" />
+            {poMenu.map((item) => <NavItem key={item.to} item={item} />)}
+          </>
+        )}
 
         {klienMenu.length > 0 && (
           <>

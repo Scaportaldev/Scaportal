@@ -1,5 +1,5 @@
 import { handle, json, HttpError } from "@/server/http";
-import { requireAuth } from "@/server/auth";
+import { requirePerm } from "@/server/auth";
 import { nowIso } from "@/server/db";
 import { getPo, updatePo, insertFile } from "@/server/po/repo";
 import { putObject } from "@/server/r2";
@@ -39,7 +39,7 @@ function extOf(name) {
 }
 
 export const POST = handle(async (req, { params }) => {
-  const current = await requireAuth(req);
+  const current = await requirePerm(req, "po");
   const { id, num } = await params;
   const stageNum = Number(num);
   if (!(stageNum >= 1 && stageNum <= 11)) throw new HttpError(400, "Nomor tahap tidak valid");

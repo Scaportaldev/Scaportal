@@ -1,16 +1,15 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { KeyRound, Loader2, ShieldCheck, UserCog } from "lucide-react";
+import { KeyRound, Loader2, ShieldCheck, UserCog, SlidersHorizontal } from "lucide-react";
 
 import api from "@/lib/api";
 import { apiError } from "@/context/AuthContext";
+import { normalizePermissions } from "@/lib/permissions";
+import PermissionToggles from "@/components/PermissionToggles";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,17 +20,21 @@ const initials = (name = "") =>
   name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?";
 
 /**
- * UserEditDialog — kelola kredensial & identitas user (khusus Superadmin).
- * Tab Identitas: nama, username, email (opsional), telepon (opsional), role.
- * Tab Password: set password baru tanpa perlu password lama.
+ * UserEditDialog — kelola user (khusus Superadmin).
+ * Tab Identitas : nama, username, email, telepon.
+ * Tab Hak Akses : toggle per-tools (terkunci ON untuk Superadmin).
+ * Tab Password  : set password baru tanpa perlu password lama.
  */
-export default function UserEditDialog({ user, currentUserId, onOpenChange, onSaved }) {
+export default function UserEditDialog({ user, currentUserId, onOpenChange, onSaved, defaultTab = "identitas" }) {
   const open = !!user;
   const isSelf = user?.id === currentUserId;
+  const isSuperTarget = user?.role === "superadmin";
 
-  const [form, setForm] = useState({ name: "", username: "", email: "", phone: "", role: "admin" });
+  const [form, setForm] = useState({ name: "", username: "", email: "", phone: "" });
+  const [perms, setPerms] = useState(normalizePermissions(null));
   const [pwd, setPwd] = useState({ next: "", confirm: "" });
   const [busy, setBusy] = useState(false);
+  const [tab, setTab] = useState(defaultTab);
 
   useEffect(() => {
     if (!user) return;
@@ -40,10 +43,11 @@ export default function UserEditDialog({ user, currentUserId, onOpenChange, onSa
       username: user.username || "",
       email: user.email || "",
       phone: user.phone || "",
-      role: user.role || "admin",
     });
+    setPerms(normalizePermissions(user.permissions));
     setPwd({ next: "", confirm: "" });
-  }, [user]);
+    setTab(defaultTab);
+  }, [user, defaultTab]);
 
   const set = (k, v) => setForm((p) => ({ ...p, [k]: v }));
 
@@ -52,18 +56,27 @@ export default function UserEditDialog({ user, currentUserId, onOpenChange, onSa
     if (!form.username.trim()) { toast.error("Username wajib diisi."); return; }
     setBusy(true);
     try {
-      const payload = {
+      await api.patch(`/users/${user.id}`, {
         name: form.name.trim(),
         username: form.username.trim(),
         email: form.email.trim(),
         phone: form.phone.trim(),
-      };
-      if (!isSelf) payload.role = form.role;
-      await api.patch(`/users/${user.id}`, payload);
+      });
       toast.success(`Data user ${form.name.trim()} diperbarui.`);
       onOpenChange(false);
       onSaved?.();
     } catch (e) { toast.error(apiError(e, "Gagal menyimpan data user")); }
+    finally { setBusy(false); }
+  };
+
+  const savePermissions = async () => {
+    setBusy(true);
+    try {
+      await api.patch(`/users/${user.id}`, { permissions: perms });
+      toast.success(`Hak akses ${user.name} diperbarui. Berlaku saat user memuat ulang halaman.`);
+      onOpenChange(false);
+      onSaved?.();
+    } catch (e) { toast.error(apiError(e, "Gagal menyimpan hak akses")); }
     finally { setBusy(false); }
   };
 
@@ -87,12 +100,11 @@ export default function UserEditDialog({ user, currentUserId, onOpenChange, onSa
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onOpenChange(false)}>
-      <DialogContent className="sm:max-w-lg" data-testid="user-edit-dialog">
+      <DialogContent className="max-h-[92vh] overflow-y-auto sm:max-w-lg" data-testid="user-edit-dialog">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2"><UserCog className="h-4 w-4" /> Kelola Kredensial User</DialogTitle>
+          <DialogTitle className="flex items-center gap-2"><UserCog className="h-4 w-4" /> Kelola User</DialogTitle>
           <DialogDescription>
-            Ubah identitas, hak akses, dan password login user.
-            {isSelf && " Ini akun Anda sendiri — role tidak bisa diubah agar akses tidak terkunci."}
+            Ubah identitas, hak akses per-tools, dan password login user.
           </DialogDescription>
         </DialogHeader>
 
@@ -106,18 +118,21 @@ export default function UserEditDialog({ user, currentUserId, onOpenChange, onSa
             <div className="truncate font-semibold">{form.name || user?.name}</div>
             <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
               <span className="truncate">@{form.username || user?.username}</span>
-              <Badge variant={form.role === "superadmin" ? "default" : "outline"} className="gap-1 text-[10px]">
-                {form.role === "superadmin" && <ShieldCheck className="h-3 w-3" />}
-                {form.role === "superadmin" ? "Superadmin" : "Admin/PIC"}
+              <Badge variant={isSuperTarget ? "default" : "outline"} className="gap-1 text-[10px]">
+                {isSuperTarget && <ShieldCheck className="h-3 w-3" />}
+                {isSuperTarget ? "Superadmin" : "Admin"}
               </Badge>
               {isSelf && <Badge variant="secondary" className="text-[10px]">Akun Anda</Badge>}
             </div>
           </div>
         </div>
 
-        <Tabs defaultValue="identitas">
+        <Tabs value={tab} onValueChange={setTab}>
           <TabsList className="w-full">
             <TabsTrigger value="identitas" className="flex-1" data-testid="useredit-tab-identity">Identitas</TabsTrigger>
+            <TabsTrigger value="akses" className="flex-1 gap-1.5" data-testid="useredit-tab-access">
+              <SlidersHorizontal className="h-3.5 w-3.5" /> Hak Akses
+            </TabsTrigger>
             <TabsTrigger value="password" className="flex-1" data-testid="useredit-tab-password">Password</TabsTrigger>
           </TabsList>
 
@@ -126,36 +141,44 @@ export default function UserEditDialog({ user, currentUserId, onOpenChange, onSa
               <Label>Nama Lengkap</Label>
               <Input value={form.name} data-testid="useredit-name" onChange={(e) => set("name", e.target.value)} />
             </div>
+            <div className="space-y-1.5">
+              <Label>Username</Label>
+              <Input value={form.username} data-testid="useredit-username" onChange={(e) => set("username", e.target.value)} />
+            </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label>Username</Label>
-                <Input value={form.username} data-testid="useredit-username" onChange={(e) => set("username", e.target.value)} />
+                <Label>Email <span className="text-muted-foreground">(opsional)</span></Label>
+                <Input type="email" value={form.email} placeholder="nama@email.com" data-testid="useredit-email"
+                  onChange={(e) => set("email", e.target.value)} />
               </div>
               <div className="space-y-1.5">
-                <Label>Role</Label>
-                <Select value={form.role} disabled={isSelf} onValueChange={(v) => set("role", v)}>
-                  <SelectTrigger data-testid="useredit-role"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="admin">Admin/PIC</SelectItem>
-                    <SelectItem value="superadmin">Superadmin</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label>No. Telepon <span className="text-muted-foreground">(opsional)</span></Label>
+                <Input value={form.phone} placeholder="08xxxxxxxxxx" data-testid="useredit-phone"
+                  onChange={(e) => set("phone", e.target.value)} />
               </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Email <span className="text-muted-foreground">(opsional)</span></Label>
-              <Input type="email" value={form.email} placeholder="nama@email.com" data-testid="useredit-email"
-                onChange={(e) => set("email", e.target.value)} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>No. Telepon <span className="text-muted-foreground">(opsional)</span></Label>
-              <Input value={form.phone} placeholder="08xxxxxxxxxx" data-testid="useredit-phone"
-                onChange={(e) => set("phone", e.target.value)} />
             </div>
             <DialogFooter className="pt-1">
               <Button variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
               <Button onClick={saveIdentity} disabled={busy} data-testid="useredit-save-identity">
                 {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Simpan Perubahan
+              </Button>
+            </DialogFooter>
+          </TabsContent>
+
+          <TabsContent value="akses" className="space-y-3 pt-3">
+            {!isSuperTarget && (
+              <p className="rounded-md bg-secondary p-3 text-xs text-muted-foreground">
+                Tools yang dimatikan akan <strong>hilang dari sidebar</strong> user ini dan tidak bisa dibuka
+                lewat URL maupun API.
+              </p>
+            )}
+            <div className="max-h-[48vh] overflow-y-auto pr-1">
+              <PermissionToggles value={perms} onChange={setPerms} locked={isSuperTarget} testidPrefix="useredit-perm" />
+            </div>
+            <DialogFooter className="pt-1">
+              <Button variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
+              <Button onClick={savePermissions} disabled={busy || isSuperTarget} data-testid="useredit-save-access">
+                {busy && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Simpan Hak Akses
               </Button>
             </DialogFooter>
           </TabsContent>
