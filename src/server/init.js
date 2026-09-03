@@ -1,56 +1,32 @@
-import { getDb, COL, nowIso } from "@/server/mongo";
+/**
+ * Inisialisasi database: buat tabel (idempotent) + seed data awal.
+ * Dipanggil sekali per proses lewat ensureInit() di wrapper handle().
+ */
+import { query, nowIso } from "@/server/db";
+import { DDL } from "@/server/schema";
 import { hashPassword, verifyPassword } from "@/server/auth";
+import { findUserByUsername, insertUser, updateUser } from "@/server/users";
+import { getSetting, setSetting } from "@/server/settings";
+import { ensureTopSeed } from "@/server/tempo";
 
 const g = globalThis;
 
 async function runInit() {
-  const db = await getDb();
+  for (const sql of DDL) {
+    await query(sql);
+  }
 
-  await Promise.all([
-    db.collection(COL.users).createIndex({ username: 1 }, { unique: true }),
-    db.collection(COL.paper).createIndex({ year: 1 }),
-    db.collection(COL.ink).createIndex({ year: 1 }),
-    db.collection(COL.other).createIndex({ year: 1 }),
-    db.collection(COL.activityLogs).createIndex({ login_time: -1 }),
-    db.collection(COL.auditLogs).createIndex({ timestamp: -1 }),
-    // HPP
-    db.collection(COL.hppCalcs).createIndex({ updated_at: -1 }),
-    db.collection(COL.hppCalcs).createIndex({ id: 1 }, { unique: true }),
-    // PO Tracker
-    db.collection(COL.pos).createIndex({ po_number: 1 }, { unique: true }),
-    db.collection(COL.pos).createIndex({ id: 1 }, { unique: true }),
-    db.collection(COL.pos).createIndex({ created_at: -1 }),
-    db.collection(COL.poSchedules).createIndex({ id: 1 }, { unique: true }),
-    db.collection(COL.poSchedules).createIndex({ date: 1 }),
-    db.collection(COL.poSchedules).createIndex({ po_id: 1 }),
-    db.collection(COL.poFiles).createIndex({ id: 1 }, { unique: true }),
-    db.collection(COL.poFiles).createIndex({ po_id: 1, is_deleted: 1 }),
-    // Stok Klien
-    db.collection(COL.klienClients).createIndex({ id: 1 }, { unique: true }),
-    db.collection(COL.klienClients).createIndex({ nama: 1 }),
-    db.collection(COL.klienPos).createIndex({ id: 1 }, { unique: true }),
-    db.collection(COL.klienPos).createIndex({ klien_id: 1 }),
-    db.collection(COL.klienItems).createIndex({ id: 1 }, { unique: true }),
-    db.collection(COL.klienItems).createIndex({ po_id: 1 }),
-    db.collection(COL.klienMutations).createIndex({ id: 1 }, { unique: true }),
-    db.collection(COL.klienMutations).createIndex({ item_id: 1 }),
-    db.collection(COL.klienMutations).createIndex({ tanggal: -1 }),
-    // Jatuh Tempo Klien
-    db.collection(COL.tempoInvoices).createIndex({ id: 1 }, { unique: true }),
-    db.collection(COL.tempoInvoices).createIndex({ due_date: 1 }),
-    db.collection(COL.tempoInvoices).createIndex({ status: 1 }),
-  ]);
-
-  // Seed superadmin (idempotent)
+  // Seed superadmin (idempotent) + sinkronkan password dari env
   const suUser = process.env.SUPERADMIN_USERNAME || "Jeffsca";
   const suPass = process.env.SUPERADMIN_PASSWORD || "jeff3131";
-  const existing = await db.collection(COL.users).findOne({ username: suUser });
+  const existing = await findUserByUsername(suUser);
   if (!existing) {
-    await db.collection(COL.users).insertOne({
+    await insertUser({
       id: crypto.randomUUID(),
       name: "Jeff (Superadmin)",
       username: suUser,
       email: process.env.OWNER_EMAIL || "",
+      phone: "",
       password_hash: hashPassword(suPass),
       role: "superadmin",
       active: true,
@@ -58,22 +34,19 @@ async function runInit() {
     });
     console.log("[init] seeded superadmin", suUser);
   } else if (!verifyPassword(suPass, existing.password_hash)) {
-    await db
-      .collection(COL.users)
-      .updateOne({ username: suUser }, { $set: { password_hash: hashPassword(suPass) } });
+    await updateUser(existing.id, { password_hash: hashPassword(suPass) });
     console.log("[init] superadmin password disinkronkan dari env");
   }
 
-  // Seed temp access password (idempotent)
-  const temp = await db.collection(COL.settings).findOne({ key: "temp_password" });
+  // Seed password akses sementara (idempotent)
+  const temp = await getSetting("temp_password");
   if (!temp) {
-    await db.collection(COL.settings).insertOne({
-      key: "temp_password",
-      hash: hashPassword(process.env.TEMP_ACCESS_PASSWORD || "superadminsementara"),
-      updated_at: nowIso(),
-    });
+    await setSetting("temp_password", hashPassword(process.env.TEMP_ACCESS_PASSWORD || "superadminsementara"));
     console.log("[init] seeded temp access password");
   }
+
+  // Seed opsi TOP Jatuh Tempo Klien
+  await ensureTopSeed();
 }
 
 export function ensureInit() {

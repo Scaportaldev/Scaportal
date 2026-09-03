@@ -1,13 +1,13 @@
-import { getDb, COL, stripId, currentYear } from "@/server/mongo";
+import { currentYear } from "@/server/db";
+import { listMutations } from "@/server/mutations";
 import {
   computePaperStocks, computeInkStocks, computeOtherStocks, signedQty, paperKey, round,
 } from "@/server/stock";
 import { ID_MONTHS } from "@/server/format";
 
-export async function allYear(collection, year) {
-  const db = await getDb();
-  const docs = await db.collection(collection).find({ year }).toArray();
-  return docs.map(stripId);
+/** Semua mutasi satu tipe untuk satu tahun (type = paper | ink | other). */
+export async function allYear(type, year) {
+  return await listMutations(type, { year });
 }
 
 const sum = (arr) => arr.reduce((a, b) => a + Number(b || 0), 0);
@@ -29,7 +29,7 @@ function countRange(muts, start, end, transaksi) {
 export async function computeDashboard(current) {
   const year = currentYear();
   const [paper, ink, other] = await Promise.all([
-    allYear(COL.paper, year), allYear(COL.ink, year), allYear(COL.other, year),
+    allYear("paper", year), allYear("ink", year), allYear("other", year),
   ]);
 
   const p = computePaperStocks(paper);
@@ -93,7 +93,7 @@ export async function computeDashboard(current) {
 export async function computeStock() {
   const year = currentYear();
   const [paper, ink, other] = await Promise.all([
-    allYear(COL.paper, year), allYear(COL.ink, year), allYear(COL.other, year),
+    allYear("paper", year), allYear("ink", year), allYear("other", year),
   ]);
   const p = computePaperStocks(paper);
   const i = computeInkStocks(ink);
@@ -111,7 +111,7 @@ export async function computeStock() {
   };
   const supList = (map, k) =>
     Object.entries(map[k] || {})
-      .map(([supplier, q]) => ({ supplier, stock: round(q, 3) }))
+      .map(([supplier, qty]) => ({ supplier, stock: round(qty, 3) }))
       .filter((x) => x.stock !== 0)
       .sort((a, b) => b.stock - a.stock);
 
@@ -145,7 +145,7 @@ export async function computeDetail(startIn, endIn) {
   const end = endIn || new Date().toISOString().slice(0, 10);
 
   const [paper, ink, other] = await Promise.all([
-    allYear(COL.paper, year), allYear(COL.ink, year), allYear(COL.other, year),
+    allYear("paper", year), allYear("ink", year), allYear("other", year),
   ]);
 
   const pStocks = computePaperStocks(subsetUpTo(paper, end));
@@ -156,8 +156,6 @@ export async function computeDetail(startIn, endIn) {
   const nominalInk = round(sum(Object.values(iStocks).map((v) => v.nominal)), 2);
   const nominalOther = round(sum(Object.values(oStocks).map((v) => v.nominal)), 2);
 
-  // Nama komposisi dibuat UNIK: satu jenis kertas bisa punya beberapa gramatur/
-  // ukuran, kalau namanya sama grafik jadi ambigu (dan React duplicate key).
   const paperComposition = Object.values(pStocks).filter((v) => v.nominal > 0)
     .map((v) => ({
       name: [v.jenis_kertas, v.gramatur ? `${v.gramatur}gr` : null].filter(Boolean).join(" "),
@@ -203,7 +201,6 @@ export async function computeDetail(startIn, endIn) {
     });
   }
 
-  // periode sebelumnya dengan panjang sama
   const DAY = 86400000;
   const sd = new Date(`${start}T00:00:00Z`);
   const ed = new Date(`${end}T00:00:00Z`);

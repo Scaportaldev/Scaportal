@@ -1,6 +1,7 @@
 import { handle, json, readJson, HttpError } from "@/server/http";
 import { getCurrentUser, hashPassword, verifyPassword, logAudit } from "@/server/auth";
-import { getDb, COL, nowIso } from "@/server/mongo";
+import { nowIso } from "@/server/db";
+import { findUserById, updateUser } from "@/server/users";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -45,8 +46,7 @@ export const PATCH = handle(async (req) => {
   if (newPassword) {
     const currentPassword = String(body.current_password || "");
     if (!currentPassword) throw new HttpError(400, "Password lama wajib diisi");
-    const db0 = await getDb();
-    const doc = await db0.collection(COL.users).findOne({ id: current.id });
+    const doc = await findUserById(current.id);
     if (!verifyPassword(currentPassword, doc?.password_hash || "")) {
       throw new HttpError(400, "Password lama salah");
     }
@@ -57,13 +57,13 @@ export const PATCH = handle(async (req) => {
 
   if (!Object.keys(set).length) throw new HttpError(400, "Tidak ada perubahan");
 
-  const db = await getDb();
-  await db.collection(COL.users).updateOne({ id: current.id }, { $set: set });
-  const fresh = await db.collection(COL.users).findOne({ id: current.id });
+  set.updated_at = nowIso();
+  await updateUser(current.id, set);
+  const fresh = await findUserById(current.id);
 
   try {
     await logAudit(current, "ubah_profil_sendiri", "user", current.id, null, {
-      fields: Object.keys(set).map((k) => (k === "password_hash" ? "password" : k)),
+      fields: Object.keys(set).filter((k) => k !== "updated_at").map((k) => (k === "password_hash" ? "password" : k)),
     });
   } catch { /* audit gagal tidak menggagalkan aksi utama */ }
 

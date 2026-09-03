@@ -24,7 +24,7 @@ const nextConfig = {
   // Semua halaman dirender sebagai SPA (react-router di client), jadi tidak perlu
   // image optimization server-side.
   images: { unoptimized: true },
-  serverExternalPackages: ['mongodb', 'bcryptjs'],
+  serverExternalPackages: ['mysql2', 'bcryptjs'],
 };
 
 module.exports = nextConfig;

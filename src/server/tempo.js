@@ -1,17 +1,18 @@
 /**
- * Jatuh Tempo Klien — helper server.
+ * Jatuh Tempo Klien — helper server (MariaDB).
  *
- * Melacak invoice klien: TOP (term of payment), jatuh tempo, cicilan, status
- * lunas/belum, dan laporan (ringkasan, rincian per klien, omset bulanan).
- * Koleksi terpisah: tempo_invoices + settings key `tempo_top_options`.
+ * Tabel: tempo_invoices (1) --< tempo_installments (n), tempo_top_options.
  */
-import { getDb, COL, TEMPO_TOP_KEY, nowIso } from "@/server/mongo";
+import {
+  query, queryOne, insertRow, updateRow, deleteRows, withTx,
+  fromRow, fromRows, toDateTime, toDate, nowIso, newId,
+} from "@/server/db";
 import { HttpError } from "@/server/http";
+
+export { nowIso, newId };
 
 export const DEFAULT_TOP_OPTIONS = ["Cash", "Net 30", "Net 60", "Net 90", "Cicilan"];
 export const STATUSES = ["lunas", "belum_lunas"];
-
-export const newId = () => crypto.randomUUID();
 
 export function num(v) {
   const x = typeof v === "number" ? v : parseFloat(String(v ?? "").replace(/[^\d.-]/g, ""));
@@ -27,13 +28,12 @@ export function computePaid(inv) {
   return inv?.status === "lunas" ? num(inv.total_amount) : 0;
 }
 
-/** Buang _id + tambahkan paid_amount / remaining_amount. */
+/** Tambahkan paid_amount / remaining_amount. */
 export function enrich(inv) {
   if (!inv) return inv;
-  const { _id, ...rest } = inv;
-  const total = num(rest.total_amount);
-  const paid = computePaid(rest);
-  return { ...rest, paid_amount: paid, remaining_amount: round2(total - paid) };
+  const total = num(inv.total_amount);
+  const paid = computePaid(inv);
+  return { ...inv, installments: inv.installments || [], paid_amount: paid, remaining_amount: round2(total - paid) };
 }
 
 export function normalizeInstallments(list) {
@@ -41,7 +41,7 @@ export function normalizeInstallments(list) {
     id: i?.id || newId(),
     sequence: Number(i?.sequence) || idx + 1,
     amount: num(i?.amount),
-    date: i?.date || null,
+    date: toDate(i?.date) || null,
   }));
 }
 
@@ -52,13 +52,13 @@ export function buildInvoicePayload(body, existing = null) {
   const payload = {
     client_name: clientName,
     top: String(body?.top || "Cash"),
-    po_date: body?.po_date || null,
+    po_date: toDate(body?.po_date),
     po_number: body?.po_number ?? null,
     delivery_note_number: body?.delivery_note_number ?? null,
     invoice_number: body?.invoice_number ?? null,
-    invoice_date: body?.invoice_date || null,
+    invoice_date: toDate(body?.invoice_date),
     total_amount: num(body?.total_amount),
-    due_date: body?.due_date || null,
+    due_date: toDate(body?.due_date),
     status,
     installments: normalizeInstallments(body?.installments),
     updated_at: nowIso(),
@@ -75,38 +75,113 @@ export function buildInvoicePayload(body, existing = null) {
   return payload;
 }
 
+// ---------- Akses tabel ----------
+const INVOICE_COLS = [
+  "id", "client_name", "top", "po_date", "po_number", "delivery_note_number", "invoice_number",
+  "invoice_date", "total_amount", "due_date", "status", "created_at", "updated_at",
+];
+
+function invoiceRow(obj) {
+  const row = {};
+  for (const c of INVOICE_COLS) {
+    if (obj[c] === undefined) continue;
+    let v = obj[c];
+    if (c === "created_at" || c === "updated_at") v = toDateTime(v);
+    else if (c === "po_date" || c === "invoice_date" || c === "due_date") v = toDate(v);
+    row[c] = v;
+  }
+  return row;
+}
+
+async function attachInstallments(invoices) {
+  if (!invoices.length) return invoices;
+  const ids = invoices.map((i) => i.id);
+  const rows = await query(
+    `SELECT * FROM \`tempo_installments\` WHERE \`invoice_id\` IN (${ids.map(() => "?").join(",")}) ORDER BY \`sequence\` ASC, \`date\` ASC`,
+    ids,
+  );
+  const byInv = new Map();
+  for (const r of rows) {
+    if (!byInv.has(r.invoice_id)) byInv.set(r.invoice_id, []);
+    byInv.get(r.invoice_id).push({ id: r.id, sequence: r.sequence, amount: r.amount, date: r.date });
+  }
+  return invoices.map((inv) => ({ ...inv, installments: byInv.get(inv.id) || [] }));
+}
+
+async function replaceInstallments(invoiceId, installments, conn) {
+  await deleteRows("tempo_installments", { invoice_id: invoiceId }, conn);
+  for (const i of installments) {
+    await insertRow("tempo_installments", {
+      id: i.id || newId(),
+      invoice_id: invoiceId,
+      sequence: Number(i.sequence) || 1,
+      amount: num(i.amount),
+      date: toDate(i.date),
+    }, conn);
+  }
+}
+
+export async function getInvoiceOr404(id) {
+  const inv = fromRow(await queryOne("SELECT * FROM `tempo_invoices` WHERE `id`=?", [id]));
+  if (!inv) throw new HttpError(404, "Invoice tidak ditemukan");
+  return (await attachInstallments([inv]))[0];
+}
+
+export async function insertInvoice(payload) {
+  await withTx(async (conn) => {
+    await insertRow("tempo_invoices", invoiceRow(payload), conn);
+    await replaceInstallments(payload.id, payload.installments || [], conn);
+  });
+  return payload;
+}
+
+/** Update kolom invoice; bila payload.installments ada, daftar cicilan diganti seluruhnya. */
+export async function updateInvoice(id, payload) {
+  await withTx(async (conn) => {
+    const row = invoiceRow(payload);
+    if (Object.keys(row).length) await updateRow("tempo_invoices", row, { id }, conn);
+    if (payload.installments !== undefined) await replaceInstallments(id, payload.installments, conn);
+  });
+}
+
+export async function deleteInvoice(id) {
+  return await deleteRows("tempo_invoices", { id });
+}
+
+export async function deleteAllInvoices() {
+  const res = await deleteRows("tempo_invoices", {});
+  return res.affectedRows;
+}
+
+export async function renameTopInInvoices(oldValue, newValue) {
+  await query("UPDATE `tempo_invoices` SET `top`=?, `updated_at`=? WHERE `top`=?", [newValue, toDateTime(nowIso()), oldValue]);
+}
+
 // ---------- TOP options ----------
 export async function ensureTopSeed() {
-  const db = await getDb();
-  const doc = await db.collection(COL.settings).findOne({ key: TEMPO_TOP_KEY });
-  if (!doc) {
-    await db.collection(COL.settings).insertOne({
-      key: TEMPO_TOP_KEY,
-      values: DEFAULT_TOP_OPTIONS,
-      updated_at: nowIso(),
-    });
-    return [...DEFAULT_TOP_OPTIONS];
-  }
-  return Array.isArray(doc.values) && doc.values.length ? doc.values : [...DEFAULT_TOP_OPTIONS];
+  const rows = await query("SELECT `value` FROM `tempo_top_options` ORDER BY `sort_order` ASC, `value` ASC");
+  if (rows.length) return rows.map((r) => r.value);
+  await saveTopOptions(DEFAULT_TOP_OPTIONS);
+  return [...DEFAULT_TOP_OPTIONS];
 }
 
 export async function saveTopOptions(values) {
-  const db = await getDb();
-  await db.collection(COL.settings).updateOne(
-    { key: TEMPO_TOP_KEY },
-    { $set: { values, updated_at: nowIso() } },
-    { upsert: true },
-  );
-  return values;
+  const list = [...new Set((values || []).map((v) => String(v).trim()).filter(Boolean))];
+  await withTx(async (conn) => {
+    await deleteRows("tempo_top_options", {}, conn);
+    for (let i = 0; i < list.length; i += 1) {
+      await insertRow("tempo_top_options", { value: list[i], sort_order: i }, conn);
+    }
+  });
+  return list;
 }
 
 // ---------- Reports ----------
 export const monthKey = (d) => (d ? String(d).slice(0, 7) : null);
 
 async function allInvoices() {
-  const db = await getDb();
-  const docs = await db.collection(COL.tempoInvoices).find({}).limit(20000).toArray();
-  return docs.map(enrich);
+  const invs = fromRows(await query("SELECT * FROM `tempo_invoices` LIMIT 20000"));
+  return (await attachInstallments(invs)).map(enrich);
 }
 
 function inRange(d, start, end) {
@@ -234,15 +309,19 @@ export async function computeMonthly(yearInput) {
 }
 
 export async function sortedInvoices({ search, status, sort_by = "due_date", order = "asc" } = {}) {
-  const db = await getDb();
-  const query = {};
+  const where = [];
+  const params = [];
   if (search) {
-    const rx = { $regex: String(search).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), $options: "i" };
-    query.$or = [{ client_name: rx }, { invoice_number: rx }, { po_number: rx }];
+    const like = `%${String(search).replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+    where.push("(`client_name` LIKE ? OR `invoice_number` LIKE ? OR `po_number` LIKE ?)");
+    params.push(like, like, like);
   }
-  if (STATUSES.includes(status)) query.status = status;
+  if (STATUSES.includes(status)) { where.push("`status`=?"); params.push(status); }
 
-  const docs = (await db.collection(COL.tempoInvoices).find(query).limit(5000).toArray()).map(enrich);
+  const invs = fromRows(await query(
+    `SELECT * FROM \`tempo_invoices\`${where.length ? ` WHERE ${where.join(" AND ")}` : ""} LIMIT 5000`, params,
+  ));
+  const docs = (await attachInstallments(invs)).map(enrich);
 
   const keyMap = {
     due_date: (d) => d.due_date || "",
@@ -262,12 +341,3 @@ export async function sortedInvoices({ search, status, sort_by = "due_date", ord
   });
   return docs;
 }
-
-export async function getInvoiceOr404(id) {
-  const db = await getDb();
-  const inv = await db.collection(COL.tempoInvoices).findOne({ id });
-  if (!inv) throw new HttpError(404, "Invoice tidak ditemukan");
-  return inv;
-}
-
-export { nowIso };

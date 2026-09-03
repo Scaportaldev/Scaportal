@@ -1,7 +1,6 @@
 import { handle, json, readJson, HttpError } from "@/server/http";
 import { requireAuth } from "@/server/auth";
-import { getDb, COL } from "@/server/mongo";
-import { num, validateItemStatus, getItemOr404 } from "@/server/klien";
+import { num, validateItemStatus, getItemOr404, updateItem, deleteItemCascade } from "@/server/klien";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,9 +20,9 @@ export const PUT = handle(async (req, { params }) => {
   if (body?.satuan !== undefined && body.satuan !== null) updates.satuan = String(body.satuan).trim();
   if (body?.keterangan !== undefined && body.keterangan !== null) updates.keterangan = String(body.keterangan);
   if (body?.kuantiti !== undefined && body.kuantiti !== null) {
-    const q = num(body.kuantiti, -1);
-    if (q < 0) throw new HttpError(400, "Kuantiti tidak boleh negatif");
-    updates.kuantiti = q;
+    const qty = num(body.kuantiti, -1);
+    if (qty < 0) throw new HttpError(400, "Kuantiti tidak boleh negatif");
+    updates.kuantiti = qty;
   }
   if (body?.status !== undefined && body.status !== null) {
     validateItemStatus(body.status);
@@ -31,17 +30,14 @@ export const PUT = handle(async (req, { params }) => {
   }
   if (Object.keys(updates).length === 0) throw new HttpError(400, "Tidak ada data yang diubah");
 
-  const db = await getDb();
-  await db.collection(COL.klienItems).updateOne({ id }, { $set: updates });
-  return json(await db.collection(COL.klienItems).findOne({ id }, { projection: { _id: 0 } }));
+  await updateItem(id, updates);
+  return json(await getItemOr404(id));
 });
 
 export const DELETE = handle(async (req, { params }) => {
   await requireAuth(req);
   const { id } = await params;
   await getItemOr404(id);
-  const db = await getDb();
-  await db.collection(COL.klienMutations).deleteMany({ item_id: id });
-  await db.collection(COL.klienItems).deleteOne({ id });
+  await deleteItemCascade(id); // mutasi item ikut terhapus (FK cascade)
   return json({ ok: true });
 });

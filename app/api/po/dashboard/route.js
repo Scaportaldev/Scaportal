@@ -1,6 +1,6 @@
 import { handle, json } from "@/server/http";
 import { requireAuth } from "@/server/auth";
-import { getDb, COL } from "@/server/mongo";
+import { listPos } from "@/server/po/repo";
 import { computeStatus } from "@/server/po/stages";
 
 export const runtime = "nodejs";
@@ -8,8 +8,7 @@ export const dynamic = "force-dynamic";
 
 export const GET = handle(async (req) => {
   await requireAuth(req);
-  const db = await getDb();
-  const pos = await db.collection(COL.pos).find({}).toArray();
+  const pos = await listPos({ limit: 100000 });
   const counts = {
     waiting_1: 0, waiting_2: 0, waiting_3: 0,
     stage_4: 0, stage_5: 0, stage_6: 0, stage_7: 0, stage_8: 0, stage_9: 0, stage_10: 0,

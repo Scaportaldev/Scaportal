@@ -1,7 +1,7 @@
 # Panduan Deploy — LAPORAN STOK SCA (5 Tools)
 
 Panduan lengkap dari nol sampai aplikasi live di **VPS sendiri** memakai
-**Coolify self-hosted**, database **MongoDB Atlas**, penyimpanan foto **Cloudflare R2**,
+**Coolify self-hosted**, database **MariaDB (resource Coolify)**, penyimpanan foto **Cloudflare R2**,
 dan **domain sendiri** ber-HTTPS.
 
 > Stack: Next.js 15 (App Router, full-stack) → di-build jadi Docker image lewat
@@ -38,14 +38,14 @@ dan **domain sendiri** ber-HTTPS.
                                         │      └─ Container "laporan-stok-sca" : Next.js :3000
                                         │              ├─ /            → UI (SPA)
                                         │              └─ /api/*       → Route Handlers
-                                        │                     ├─► MongoDB Atlas   (data)
+                                        │                     ├─► MariaDB (Coolify) (data)
                                         │                     └─► Cloudflare R2   (foto PO)
 ```
 
 | Komponen | Dimana | Biaya |
 | --- | --- | --- |
 | Aplikasi (Next.js) | VPS Anda, dikelola Coolify | biaya VPS |
-| Database | MongoDB Atlas M0 | gratis (512 MB) |
+| Database | MariaDB (one-click resource Coolify, di VPS yang sama) | termasuk biaya VPS |
 | Foto bukti PO | Cloudflare R2 | gratis s/d 10 GB (butuh kartu untuk aktivasi) |
 | Domain + DNS | Cloudflare | gratis (domain beli sendiri) |
 
@@ -75,8 +75,7 @@ Semua variabel di bawah diisi di **Coolify → aplikasi → Environment Variable
 
 | Variable | Wajib | Sumber / cara dapat | Contoh |
 | --- | --- | --- | --- |
-| `MONGO_URL` | ✅ | Atlas → Connect → Drivers (bagian 3.4) | `mongodb+srv://scaadmin:xxx@cluster0.abcde.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0` |
-| `DB_NAME` | ✅ | Bebas; ganti = database baru | `laporan_stok_sca` |
+| `DATABASE_URL` | ✅ | Coolify → resource MariaDB → **MariaDB URL (internal)** | `mysql://mariadb:xxx@abcdef:3306/default` |
 | `JWT_SECRET` | ✅ | `openssl rand -hex 32` | `9f3c…64 karakter hex` |
 | `SUPERADMIN_USERNAME` | ✅ (produksi) | Ditentukan sendiri | `Jeffsca` |
 | `SUPERADMIN_PASSWORD` | ✅ (produksi) | Ditentukan sendiri, kuat | `Sc@Prod!2025` |
@@ -109,7 +108,21 @@ Semua variabel di bawah diisi di **Coolify → aplikasi → Environment Variable
 
 ---
 
-## 3. MongoDB Atlas dari Nol
+## 3. Database MariaDB di Coolify
+
+> Bagian ini menggantikan MongoDB Atlas. Aplikasi sekarang memakai MariaDB.
+
+1. Coolify → Project → **+ New Resource** → **Databases** → **MariaDB** → Create.
+2. Di halaman resource MariaDB: biarkan *Access* = **Private** (aman; aplikasi konek lewat network internal Docker).
+3. Salin **MariaDB URL (internal)** (format `mysql://mariadb:PASSWORD@host:3306/default`) → isi ke env `DATABASE_URL` aplikasi.
+4. (Opsional) Tambah service **phpMyAdmin** (New Resource → Services) untuk melihat tabel:
+   host = nama host internal di URL di atas, user `mariadb`, password = *Normal user password*.
+5. Tabel dibuat otomatis oleh aplikasi saat pertama diakses. Migrasi data lama dari Atlas:
+   buka **Terminal** container aplikasi di Coolify lalu jalankan
+   `MONGO_URL="mongodb+srv://..." MONGO_DB_NAME="laporan_stok_sca" node scripts/migrate_mongo_to_mariadb.mjs`
+   (DATABASE_URL sudah tersedia dari env container).
+
+### 3.x (Arsip) MongoDB Atlas dari Nol — tidak dipakai lagi
 
 ### 3.1 Buat akun & cluster
 
@@ -514,3 +527,26 @@ curl http://localhost:3000/api/health
 ```
 
 Struktur env lengkap: lihat [`.env.example`](./.env.example). Dokumentasi fitur & API: [`README.md`](./README.md).
+
+---
+
+## 15. phpMyAdmin di subdomain sendiri (contoh `db.scaportal.cloud`)
+
+1. **Cloudflare DNS** — sudah ada record `A  db  103.150.191.186` (DNS only / proxied keduanya boleh).
+2. **Coolify** → project yang sama → **+ New Resource** → **Services** → cari **phpMyAdmin** → Create.
+3. Di service phpMyAdmin → **Environment Variables** tambahkan:
+   | Key | Value |
+   | --- | --- |
+   | `PMA_HOST` | host internal MariaDB (bagian sebelum `:3306` di *MariaDB URL (internal)*, contoh `04ufjpxd8weyexh5ffwmap6o`) |
+   | `PMA_PORT` | `3306` |
+   | `PMA_ABSOLUTE_URI` | `https://db.scaportal.cloud/` |
+   | `UPLOAD_LIMIT` | `256M` (opsional, untuk import SQL besar) |
+4. Tab **General** → kolom **Domains** isi `https://db.scaportal.cloud` → Save → **Deploy**.
+   Traefik otomatis menerbitkan sertifikat Let's Encrypt.
+5. Pastikan phpMyAdmin dan MariaDB berada di **project/network Coolify yang sama** agar host internal bisa di-resolve
+   (bila beda project: di resource MariaDB centang *Connect To Predefined Network* atau pakai Public Access + IP VPS).
+6. Login phpMyAdmin: user `mariadb`, password = *Normal user password* dari resource MariaDB. Database `default`
+   berisi 19 tabel aplikasi (`users`, `paper_mutations`, `pos`, `klien_*`, `tempo_*`, dst.).
+
+> Keamanan: phpMyAdmin memberi akses penuh ke database. Gunakan password MariaDB yang kuat, dan bila perlu batasi
+> akses lewat Cloudflare Access / IP allowlist di Traefik.

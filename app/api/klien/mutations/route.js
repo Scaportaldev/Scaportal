@@ -1,8 +1,7 @@
 import { handle, json, readJson, HttpError, qp } from "@/server/http";
 import { requireAuth } from "@/server/auth";
-import { getDb, COL } from "@/server/mongo";
 import {
-  newId, nowIso, num, validateMutasiJenis, getItemOr404, listMutations,
+  newId, nowIso, num, validateMutasiJenis, getItemOr404, getPoOr404, listMutations, insertMutationTx,
 } from "@/server/klien";
 
 export const runtime = "nodejs";
@@ -41,8 +40,7 @@ export const POST = handle(async (req) => {
     throw new HttpError(400, `Stok tidak mencukupi. Stok saat ini: ${num(item.kuantiti)} ${item.satuan || ""}`.trim());
   }
 
-  const db = await getDb();
-  const po = await db.collection(COL.klienPos).findOne({ id: item.po_id }, { projection: { _id: 0 } });
+  const po = await getPoOr404(item.po_id);
 
   const doc = {
     id: newId(),
@@ -56,8 +54,7 @@ export const POST = handle(async (req) => {
     pic_name: current.name || current.username,
     created_at: nowIso(),
   };
-  await db.collection(COL.klienMutations).insertOne({ ...doc });
-  await db.collection(COL.klienItems).updateOne({ id: item.id }, { $set: { kuantiti: newQty } });
+  await insertMutationTx(doc, newQty);
 
   return json({ ...doc, kuantiti_baru: newQty }, 201);
 });

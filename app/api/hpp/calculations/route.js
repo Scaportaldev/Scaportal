@@ -1,15 +1,14 @@
 import { handle, json, readJson, HttpError } from "@/server/http";
 import { requireSuperadmin } from "@/server/auth";
-import { getDb, COL, stripId, nowIso } from "@/server/mongo";
+import { nowIso } from "@/server/db";
+import { listCalculations, insertCalculation } from "@/server/hpp";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export const GET = handle(async (req) => {
   await requireSuperadmin(req);
-  const db = await getDb();
-  const docs = await db.collection(COL.hppCalcs).find({}).sort({ updated_at: -1 }).limit(500).toArray();
-  return json(docs.map(stripId));
+  return json(await listCalculations(500));
 });
 
 export const POST = handle(async (req) => {
@@ -29,7 +28,6 @@ export const POST = handle(async (req) => {
     created_at: now,
     updated_at: now,
   };
-  const db = await getDb();
-  await db.collection(COL.hppCalcs).insertOne({ ...doc });
+  await insertCalculation(doc);
   return json(doc);
 });

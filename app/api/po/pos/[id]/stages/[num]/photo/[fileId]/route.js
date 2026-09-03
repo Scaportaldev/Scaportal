@@ -1,6 +1,7 @@
 import { handle, json, HttpError } from "@/server/http";
 import { requireAuth } from "@/server/auth";
-import { getDb, COL, nowIso } from "@/server/mongo";
+import { nowIso } from "@/server/db";
+import { getPo, updatePo, getFile, markFileDeleted } from "@/server/po/repo";
 import { deleteObject, getObjectStream } from "@/server/r2";
 
 export const runtime = "nodejs";
@@ -11,8 +12,7 @@ export const dynamic = "force-dynamic";
 export const GET = handle(async (req, { params }) => {
   await requireAuth(req);
   const { fileId } = await params;
-  const db = await getDb();
-  const rec = await db.collection(COL.poFiles).findOne({ id: fileId, is_deleted: { $ne: true } });
+  const rec = await getFile(fileId);
   if (!rec || !rec.r2_key) throw new HttpError(404, "Foto tidak ditemukan");
 
   const obj = await getObjectStream(rec.r2_key);
@@ -29,20 +29,19 @@ export const GET = handle(async (req, { params }) => {
 export const DELETE = handle(async (req, { params }) => {
   await requireAuth(req);
   const { id, num, fileId } = await params;
-  const db = await getDb();
-  const rec = await db.collection(COL.poFiles).findOne({ id: fileId });
+  const rec = await getFile(fileId, { includeDeleted: true });
   if (rec && rec.r2_key) {
     try { await deleteObject(rec.r2_key); } catch (e) { console.warn("[r2] delete gagal:", e?.message); }
   }
-  await db.collection(COL.poFiles).updateOne({ id: fileId }, { $set: { is_deleted: true, deleted_at: nowIso() } });
+  if (rec) await markFileDeleted(fileId);
 
-  const po = await db.collection(COL.pos).findOne({ id });
+  const po = await getPo(id);
   if (po) {
     const stageData = po.stage_data || {};
     const d = stageData[String(num)] || {};
     d.photos = (d.photos || []).filter((p) => p.id !== fileId);
     stageData[String(num)] = d;
-    await db.collection(COL.pos).updateOne({ id }, { $set: { stage_data: stageData, updated_at: nowIso() } });
+    await updatePo(id, { stage_data: stageData, updated_at: nowIso() });
   }
   return json({ ok: true });
 });

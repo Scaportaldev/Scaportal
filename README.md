@@ -1,7 +1,7 @@
 # LAPORAN STOK SCA
 
 Sistem **mutasi & laporan stok** kertas, tinta, dan barang lain untuk percetakan SCA.
-Full-stack **Next.js 15 (App Router)** + **MongoDB Atlas** + **Cloudflare R2**, siap deploy ke **VPS via Coolify** (Docker). Panduan lengkap: [`DEPLOY.md`](./DEPLOY.md).
+Full-stack **Next.js 15 (App Router)** + **MariaDB** (relasional, 19 tabel) + **Cloudflare R2**, siap deploy ke **VPS via Coolify** (Docker). Panduan lengkap: [`DEPLOY.md`](./DEPLOY.md).
 
 Antarmuka sepenuhnya Bahasa Indonesia, responsive, mendukung mode terang & gelap.
 
@@ -67,7 +67,7 @@ Admin/PIC dengan **password akses sementara**, berlaku selama sesi login saat it
 | UI | React 19, Tailwind CSS, shadcn/ui, Recharts, next-themes, sonner |
 | Routing halaman | react-router-dom sebagai SPA di dalam catch-all route `app/[[...slug]]` |
 | API | Next.js Route Handlers (`app/api/**`), runtime Node.js |
-| Database | MongoDB (Atlas) via driver resmi `mongodb`, koneksi di-cache untuk serverless |
+| Database | **MariaDB / MySQL** via `mysql2` (pool koneksi, transaksi, FK cascade). Skema di `src/server/schema.js`, dibuat otomatis saat start |
 | Auth | JWT `jose` (HS256, 12 jam) + cookie httpOnly, hash password `bcryptjs` |
 | PDF | `pdf-lib` — tabel dengan header berulang & page-break, line/bar/komposisi chart. Murni JS, tanpa dependensi native |
 
@@ -99,14 +99,17 @@ Admin/PIC dengan **password akses sementara**, berlaku selama sesi login saat it
 │   ├── context/AuthContext.jsx
 │   ├── lib/{api.js,format.js,utils.js}
 │   └── server/                       # LAPISAN SERVER
-│       ├── mongo.js                  # koneksi + cache
-│       ├── init.js                   # index & seed idempotent
+│       ├── db.js                     # pool mysql2 + helper SQL (insertRow/updateRow/withTx)
+│       ├── schema.js                 # DDL 19 tabel (CREATE TABLE IF NOT EXISTS)
+│       ├── init.js                   # buat tabel & seed idempotent
+│       ├── users.js / logs.js / settings.js / hpp.js / po/repo.js  # akses tabel per modul
 │       ├── auth.js                   # JWT, bcrypt, guard role/section
 │       ├── stock.js                  # perhitungan stok & harga
 │       ├── mutations.js              # validasi + aturan edit/hapus
 │       ├── reports.js                # dashboard, stok, detail
 │       └── pdf/{core.js,builders.js}
-├── scripts/seed.mjs                  # seed manual (opsional)
+├── scripts/migrate_mongo_to_mariadb.mjs  # migrasi data lama MongoDB -> MariaDB
+├── scripts/seed.mjs                  # seed manual (opsional, versi Mongo lama)
 ├── package.json                      # aplikasi Next.js (root repo)
 ├── next.config.js
 ├── tailwind.config.js
@@ -138,8 +141,7 @@ Wajib:
 
 | Key | Keterangan |
 | --- | --- |
-| `MONGO_URL` | Connection string MongoDB Atlas (`mongodb+srv://...`) |
-| `DB_NAME` | Nama database, mis. `laporan_stok_sca` |
+| `DATABASE_URL` | Connection string MariaDB/MySQL: `mysql://user:pass@host:3306/db` (Coolify: *MariaDB URL (internal)*) |
 | `JWT_SECRET` | Kunci tanda tangan JWT — buat dengan `openssl rand -hex 32` |
 
 Opsional (punya nilai default, dipakai saat seed pertama):
@@ -312,3 +314,31 @@ Emergent yang menjalankan `yarn start` di folder `frontend/` tetap mem-boot Next
 > `supervisorctl stop frontend && rm -rf .next && supervisorctl start frontend`.
 
 Di produksi (Docker/Coolify) proxy ini **tidak dipakai** — Next.js melayani `/api/*` secara native.
+
+
+---
+
+## Database MariaDB
+
+Tabel dibuat otomatis saat aplikasi pertama kali menerima request (`src/server/init.js`).
+Struktur bisa dilihat/diedit lewat **phpMyAdmin** (one-click service di Coolify).
+
+| Modul | Tabel |
+| --- | --- |
+| Akun & sistem | `users`, `settings`, `activity_logs`, `audit_logs` |
+| Stok SCA | `paper_mutations`, `ink_mutations`, `other_mutations` |
+| Kalkulator HPP | `hpp_calculations` |
+| PO Tracker | `pos` ⟵ `po_logs`, `po_schedules`, `po_files` (FK cascade) |
+| Stok Klien | `klien_clients` ⟵ `klien_pos` ⟵ `klien_items` ⟵ `klien_mutations` (FK cascade) |
+| Jatuh Tempo | `tempo_invoices` ⟵ `tempo_installments`, `tempo_top_options` |
+
+### Migrasi data lama dari MongoDB
+
+```bash
+MONGO_URL="mongodb+srv://..." MONGO_DB_NAME="laporan_stok_sca" \
+DATABASE_URL="mysql://user:pass@host:3306/db" \
+node scripts/migrate_mongo_to_mariadb.mjs
+```
+
+Script mengosongkan tabel tujuan lalu menyalin seluruh koleksi (users, mutasi, PO, klien, invoice, log).
+Tambahkan `--keep` bila tidak ingin mengosongkan tabel tujuan.

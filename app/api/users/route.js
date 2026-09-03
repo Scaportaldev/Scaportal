@@ -1,18 +1,15 @@
 import { handle, json, readJson, HttpError } from "@/server/http";
 import { requireSuperadmin, hashPassword } from "@/server/auth";
-import { getDb, COL, stripId, nowIso } from "@/server/mongo";
+import { nowIso } from "@/server/db";
+import { listUsers, findUserByUsername, insertUser, safeUser } from "@/server/users";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export const GET = handle(async (req) => {
   await requireSuperadmin(req);
-  const db = await getDb();
-  const docs = await db.collection(COL.users).find({}).sort({ created_at: 1 }).toArray();
-  return json(docs.map((d) => {
-    const { password_hash, ...rest } = stripId(d);
-    return rest;
-  }));
+  const docs = await listUsers();
+  return json(docs.map(safeUser));
 });
 
 export const POST = handle(async (req) => {
@@ -32,8 +29,7 @@ export const POST = handle(async (req) => {
     throw new HttpError(400, "Format email tidak valid");
   }
 
-  const db = await getDb();
-  const existing = await db.collection(COL.users).findOne({ username });
+  const existing = await findUserByUsername(username);
   if (existing) throw new HttpError(400, "Username sudah dipakai");
 
   const doc = {
@@ -47,7 +43,6 @@ export const POST = handle(async (req) => {
     active: true,
     created_at: nowIso(),
   };
-  await db.collection(COL.users).insertOne({ ...doc });
-  const { password_hash, ...safe } = doc;
-  return json(safe);
+  await insertUser(doc);
+  return json(safeUser(doc));
 });
