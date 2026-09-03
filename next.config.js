@@ -25,6 +25,24 @@ const nextConfig = {
   // image optimization server-side.
   images: { unoptimized: true },
   serverExternalPackages: ['mysql2', 'bcryptjs'],
+  // Security headers — pasang HSTS supaya browser force HTTPS setelah kunjungan pertama.
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          {
+            key: 'Strict-Transport-Security',
+            value: 'max-age=31536000; includeSubDomains; preload',
+          },
+          { key: 'X-Content-Type-Options', value: 'nosniff' },
+          { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(self)' },
+        ],
+      },
+    ];
+  },
 };
 
 module.exports = nextConfig;
