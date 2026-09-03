@@ -66,12 +66,12 @@ export default function Login() {
             <div className="space-y-1.5">
               <Label htmlFor="username">Nama User</Label>
               <Input id="username" data-testid="login-username" value={username} autoComplete="username"
-                onChange={(e) => setUsername(e.target.value)} placeholder="cth: Jeffsca" autoFocus />
+                onChange={(e) => setUsername(e.target.value)} placeholder="Username" autoFocus />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="password">Password</Label>
               <Input id="password" type="password" data-testid="login-password" value={password} autoComplete="current-password"
-                onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" />
+                onChange={(e) => setPassword(e.target.value)} placeholder="Password" />
             </div>
             <Button type="submit" className="w-full gap-2 group" data-testid="login-submit" disabled={loading}>
               {loading
