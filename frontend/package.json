@@ -1,0 +1,9 @@
+{
+  "name": "frontend-preview-shim",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Shim khusus preview Emergent. Aplikasi Next.js sebenarnya ada di root repo; supervisor menjalankan `yarn start` di folder ini, lalu diteruskan ke root.",
+  "scripts": {
+    "start": "cd .. && yarn start"
+  }
+}
