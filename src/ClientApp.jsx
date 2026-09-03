@@ -9,7 +9,16 @@ export default function ClientApp() {
     () =>
       new QueryClient({
         defaultOptions: {
-          queries: { staleTime: 60_000, refetchOnWindowFocus: false },
+          queries: {
+            // Data dianggap segar 30 dtk: pindah-pindah menu dalam jendela ini tidak
+            // memanggil server. Setelah aksi simpan, query terkait di-invalidate
+            // (lihat src/lib/queryInvalidation.js) sehingga langsung diambil ulang.
+            staleTime: 30_000,
+            // Kembali ke tab/jendela -> ambil ulang bila sudah stale (jaga-jaga perubahan
+            // dari perangkat/user lain).
+            refetchOnWindowFocus: true,
+            retry: 1,
+          },
         },
       }),
   );

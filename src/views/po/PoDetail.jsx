@@ -4,6 +4,8 @@ import {
   ArrowLeft, Check, RotateCcw, Upload, X, Truck, History, Pencil, Image as ImageIcon,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
+import { invalidatePo } from "@/lib/queryInvalidation";
 import * as api from "@/lib/poApi";
 import { API } from "@/lib/api";
 import { useLang } from "@/context/LangContext";
@@ -23,6 +25,7 @@ export default function PoDetail() {
   const { id } = useParams();
   const { t, stageName } = useLang();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [po, setPo] = useState(null);
   const [active, setActive] = useState(null);
 
@@ -50,8 +53,11 @@ export default function PoDetail() {
   const sd = po.stage_data || {};
   const data = sd[String(active)] || {};
 
+  // Dipakai sub-komponen setelah TULIS: muat ulang PO ini + segarkan Daftar/Dashboard PO.
+  const reloadAfterWrite = () => { invalidatePo(queryClient); return load(); };
+
   const updateStage = async (patch) => {
-    try { const updated = await api.updateStage(id, active, patch); setPo(updated); toast.success("Tersimpan"); }
+    try { const updated = await api.updateStage(id, active, patch); setPo(updated); invalidatePo(queryClient); toast.success("Tersimpan"); }
     catch (e) { toast.error(e?.response?.data?.detail || "Gagal simpan"); }
   };
 
@@ -106,11 +112,11 @@ export default function PoDetail() {
               </div>
               <span className={`rounded-full px-3 py-1 text-xs font-semibold text-white ${done ? "bg-emerald-500" : "bg-blue-500"}`}>{done ? t("done") : t("pending")}</span>
             </div>
-            <StageBody num={active} data={data} po={po} done={done} updateStage={updateStage} reload={load} t={t} />
+            <StageBody num={active} data={data} po={po} done={done} updateStage={updateStage} reload={reloadAfterWrite} t={t} />
             <StageKeterangan value={data.keterangan} onSave={(val) => updateStage({ keterangan: val })} t={t} />
           </Card>
 
-          <PhotoSection po={po} num={active} reload={load} t={t} />
+          <PhotoSection po={po} num={active} reload={reloadAfterWrite} t={t} />
         </div>
       </div>
 

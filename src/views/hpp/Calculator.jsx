@@ -9,6 +9,7 @@ import { formatRp } from "@/lib/format";
 import { MODULES, SUMMARY_ICON } from "@/components/hpp/modules";
 import SummaryPanel from "@/components/hpp/SummaryPanel";
 import * as api from "@/lib/hppApi";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const NAV = [{ id: "summary", label: "Ringkasan", icon: SUMMARY_ICON }, ...MODULES];
 
@@ -66,12 +67,24 @@ export default function HppCalculator() {
     catch { toast.error("Gagal membuat PDF"); }
   };
 
-  const loadCalc = (c) => {
-    setState({ ...defaultState(), ...c.inputs });
-    setMeta({ id: c.id, name: c.name, customer: c.customer || "", notes: c.notes || "" });
-    setDrawer(false);
-    setActive("summary");
-    toast.success(`Dimuat: ${c.name}`);
+  // Daftar dari server hanya ringkasan (nama/customer/harga final) — inputs lengkap
+  // diambil saat perhitungan dipilih.
+  const [loadingId, setLoadingId] = useState(null);
+  const loadCalc = async (c) => {
+    if (loadingId) return;
+    setLoadingId(c.id);
+    try {
+      const full = c.inputs ? c : await api.getCalculation(c.id);
+      setState({ ...defaultState(), ...(full.inputs || {}) });
+      setMeta({ id: full.id, name: full.name, customer: full.customer || "", notes: full.notes || "" });
+      setDrawer(false);
+      setActive("summary");
+      toast.success(`Dimuat: ${full.name}`);
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || "Gagal memuat perhitungan");
+    } finally {
+      setLoadingId(null);
+    }
   };
 
   const removeCalc = async (e, id) => {
@@ -114,16 +127,29 @@ export default function HppCalculator() {
         </div>
       </div>
 
-      {/* Mobile tabs */}
-      <div className="lg:hidden -mx-4 md:-mx-0 sticky top-16 z-30 bg-background/90 backdrop-blur border-y border-border">
-        <div className="flex gap-1 overflow-x-auto px-4 md:px-0 py-2">
-          {NAV.map((m) => (
-            <button key={m.id} data-testid={`tab-${m.id}`} onClick={() => setActive(m.id)}
-              className={`shrink-0 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${active === m.id ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary"}`}>
-              {m.label}
-            </button>
-          ))}
-        </div>
+      {/* Mobile: pemilih modul berupa DROPDOWN (bukan strip tab yang harus digeser horizontal).
+          Yang scroll adalah <main> (overflow-y-auto) dengan padding p-4/md:p-8, dan Chrome
+          menghitung offset sticky dari content-box, jadi pakai -top-4 / md:-top-8 agar bar
+          menempel tepat di bawah header dan tidak melayang di tengah konten. */}
+      <div className="lg:hidden -mx-4 md:-mx-0 sticky -top-4 md:-top-8 z-30 border-y border-border bg-background/95 px-4 py-2 backdrop-blur md:px-0" data-testid="hpp-mobile-nav">
+        <Select value={active} onValueChange={setActive}>
+          <SelectTrigger className="h-11 w-full rounded-lg font-medium" data-testid="hpp-module-select" aria-label="Pilih modul HPP">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent className="max-h-[60vh]">
+            {NAV.map((m) => {
+              const Icon = m.icon;
+              return (
+                <SelectItem key={m.id} value={m.id} data-testid={`tab-${m.id}`} className="py-2.5">
+                  <span className="inline-flex items-center gap-2">
+                    {Icon && <Icon className="h-4 w-4 text-muted-foreground" />}
+                    {m.label}
+                  </span>
+                </SelectItem>
+              );
+            })}
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="flex gap-6">
@@ -250,7 +276,8 @@ export default function HppCalculator() {
                 {saved.length === 0 && <p className="text-center text-sm text-muted-foreground py-10">Belum ada perhitungan tersimpan.</p>}
                 {saved.map((c) => (
                   <div key={c.id} onClick={() => loadCalc(c)} data-testid={`saved-item-${c.id}`}
-                    className="group cursor-pointer rounded-lg border border-border p-4 hover:border-primary/40 hover:bg-primary/[0.04] transition-colors">
+                    aria-busy={loadingId === c.id}
+                    className={`group cursor-pointer rounded-lg border border-border p-4 hover:border-primary/40 hover:bg-primary/[0.04] transition-colors ${loadingId === c.id ? "opacity-60" : ""}`}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="font-medium truncate">{c.name}</p>

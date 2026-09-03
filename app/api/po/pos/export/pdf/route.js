@@ -12,9 +12,10 @@ export const GET = handle(async (req) => {
   const search = qp(req, "search");
   const bucket = qp(req, "bucket");
   const month = qp(req, "month");
-  const docs = await listPos({ limit: 2000, withLogs: true });
+  // PDF rekap tidak memakai po_logs; search & month disaring di SQL.
+  const docs = await listPos({ limit: 2000, withLogs: false, search, month });
   const enriched = docs.map(enrichPo);
-  const filtered = filterPos(enriched, search, bucket, month);
+  const filtered = bucket ? filterPos(enriched, null, bucket, null) : enriched;
   const bytes = await buildPoRekapPdf({ pos: filtered, month });
   const fname = `Rekap_PO_SCA${month ? "_" + month : ""}.pdf`;
   return pdfResponse(bytes, fname);

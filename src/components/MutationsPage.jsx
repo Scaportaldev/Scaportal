@@ -46,8 +46,14 @@ export default function MutationsPage({ type }) {
   const [hidden, setHidden] = useState({});
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+  // Debounce input teks 300ms supaya tidak memanggil server tiap ketikan.
+  const [debSearch, setDebSearch] = useState("");
+  const [debSupplier, setDebSupplier] = useState("");
+  useEffect(() => { const h = setTimeout(() => setDebSearch(search.trim()), 300); return () => clearTimeout(h); }, [search]);
+  useEffect(() => { const h = setTimeout(() => setDebSupplier(fSupplier.trim()), 300); return () => clearTimeout(h); }, [fSupplier]);
 
   const base = `/${type}`;
+  const year = new Date().getFullYear();
   const nameOf = (m) => isPaper ? m.jenis_kertas : isOther ? m.nama_barang : m.jenis_tinta;
   const unitOf = (m) => isPaper ? "Rim" : isInk ? "Kg" : (m.satuan || "");
   // Mode "Total Kiriman": tampilkan total harga kiriman apa adanya (bukan hasil bagi per rim).
@@ -58,42 +64,56 @@ export default function MutationsPage({ type }) {
     return isInk ? m.harga_per_kg : m.harga_per_satuan;
   };
 
-  // Cache react-query: pindah menu terasa instan (data cache tampil lebih dulu),
-  // lalu di-refresh otomatis di background (refetchOnMount: "always").
-  const queryParams = useMemo(() => {
-    const params = { year: new Date().getFullYear() };
+  // Cache react-query: pindah menu terasa instan (staleTime global 30 dtk); setelah
+  // simpan/hapus, semua query yang bergantung pada stok di-invalidate (invalidateStok).
+  const filterParams = useMemo(() => {
+    const params = { year };
     if (period.start) params.start = period.start;
     if (period.end) params.end = period.end;
     if (fJenis !== "all") params.jenis = fJenis;
     if (fTrx !== "all") params.transaksi = fTrx;
-    if (fSupplier) params.supplier = fSupplier;
-    if (search) params.search = search;
+    if (debSupplier) params.supplier = debSupplier;
+    if (debSearch) params.search = debSearch;
     return params;
-  }, [period, fJenis, fTrx, fSupplier, search]);
+  }, [year, period, fJenis, fTrx, debSupplier, debSearch]);
 
+  // Filter & pagination dijalankan di server: hanya 1 halaman baris yang dikirim.
   const queryClient = useQueryClient();
-  const { data: rows = [], isLoading, error } = useQuery({
-    queryKey: ["mutations", type, queryParams],
-    queryFn: async () => (await api.get(`${base}/mutations`, { params: queryParams })).data,
+  const { data: pageData, isLoading, error } = useQuery({
+    queryKey: ["mutations", type, filterParams, page, pageSize],
+    queryFn: async () => (await api.get(`${base}/mutations`, { params: { ...filterParams, page, page_size: pageSize } })).data,
     placeholderData: keepPreviousData,
-    refetchOnMount: "always",
+  });
+  const rows = pageData?.items ?? [];
+  const total = pageData?.total ?? 0;
+
+  // Opsi referensi untuk form (dropdown mutasi Keluar/Masuk) — endpoint ringan, tidak
+  // tergantung halaman/filter yang sedang dilihat.
+  const { data: keluarOptions = [] } = useQuery({
+    queryKey: ["refs", type, "keluar", year],
+    queryFn: async () => (await api.get(`${base}/refs`, { params: { year, transaksi: "keluar" } })).data,
+  });
+  const { data: masukOptions = [] } = useQuery({
+    queryKey: ["refs", type, "masuk", year],
+    queryFn: async () => (await api.get(`${base}/refs`, { params: { year, transaksi: "masuk" } })).data,
   });
   const { data: jenisOptions = [] } = useQuery({
     queryKey: ["jenis", type],
     queryFn: async () => (await api.get(`${base}/jenis`)).data,
-    refetchOnMount: "always",
   });
   useEffect(() => { if (error) toast.error(apiError(error)); }, [error]);
 
   // Dipanggil setelah tambah/edit/hapus mutasi — invalidasi cache agar refetch.
-  const load = useCallback(() => {
-    queryClient.invalidateQueries({ queryKey: ["mutations", type] });
-    queryClient.invalidateQueries({ queryKey: ["jenis", type] });
-  }, [queryClient, type]);
+  // Dipanggil setelah tambah/edit/hapus: segarkan daftar ini + Dashboard, Laporan Stok,
+  // dropdown jenis/referensi, dan Log Audit (semua bergantung pada tabel mutasi).
+  const load = useCallback(() => { invalidateStok(queryClient); }, [queryClient]);
 
-  const keluarOptions = useMemo(() => rows.filter((r) => r.jenis_transaksi === "keluar"), [rows]);
-  const masukOptions = useMemo(() => rows.filter((r) => r.jenis_transaksi === "masuk"), [rows]);
-  const rowById = useMemo(() => Object.fromEntries(rows.map((r) => [r.id, r])), [rows]);
+  // Peta id -> baris untuk label "Retur dari <kode>" (referensi bisa berada di halaman lain,
+  // jadi gabungkan baris halaman ini + opsi referensi keluar/masuk).
+  const rowById = useMemo(
+    () => Object.fromEntries([...keluarOptions, ...masukOptions, ...rows].map((r) => [r.id, r])),
+    [rows, keluarOptions, masukOptions],
+  );
 
   const canModify = (m) => {
     if (user?.role === "superadmin") return true;
@@ -125,7 +145,7 @@ export default function MutationsPage({ type }) {
     } catch (e) { toast.error(apiError(e, "Gagal mengunduh PDF")); }
   };
 
-  useEffect(() => { setPage(1); }, [search, fJenis, fTrx, fSupplier, period, pageSize]);
+  useEffect(() => { setPage(1); }, [filterParams, pageSize]);
 
   const refLabel = (id) => {
     const r = rowById[id];
@@ -202,11 +222,11 @@ export default function MutationsPage({ type }) {
     deleteTestId: (m) => `delete-${m.id}`,
   } : null;
 
-  // Pagination sisi klien.
-  const total = rows.length;
+  // Pagination sisi server; jaga agar halaman tidak melampaui total (mis. setelah hapus).
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const safePage = Math.min(page, pageCount);
-  const pagedRows = rows.slice((safePage - 1) * pageSize, safePage * pageSize);
+  useEffect(() => { if (page > pageCount) setPage(pageCount); }, [page, pageCount]);
+  const pagedRows = rows;
 
   return (
     <PageContainer
@@ -279,7 +299,7 @@ export default function MutationsPage({ type }) {
           data={pagedRows}
           rowKey={(m) => m.id}
           actions={tableActions}
-          isLoading={isLoading}
+          isLoading={isLoading && !pageData}
           skeletonRows={5}
           scrollClassName="overflow-auto md:min-h-0 md:flex-1"
           testid="mutations-table-body"

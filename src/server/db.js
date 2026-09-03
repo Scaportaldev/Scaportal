@@ -127,6 +127,15 @@ export async function deleteRows(table, where = {}, conn = null) {
   return await query(sql, wc.map((c) => toParam(where[c])), conn);
 }
 
+/**
+ * Pola LIKE "mengandung" yang aman: escape wildcard % _ dan backslash.
+ * Collation tabel utf8mb4_unicode_ci -> LIKE otomatis case-insensitive
+ * (setara `toLowerCase().includes()` di JS).
+ */
+export function likeContains(s) {
+  return "%" + String(s ?? "").replace(/[\\%_]/g, "\\$&") + "%";
+}
+
 /** Placeholder "?, ?, ?" untuk klausa IN (...). Mengembalikan null bila list kosong. */
 export function inList(arr) {
   if (!arr || !arr.length) return null;

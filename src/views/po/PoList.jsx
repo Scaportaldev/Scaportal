@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import PageContainer from "@/components/layout/PageContainer";
+import TablePagination from "@/components/TablePagination";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription, EmptyContent } from "@/components/ui/empty";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -42,6 +43,8 @@ export default function PoList() {
   const [debSearch, setDebSearch] = useState("");
   const [delId, setDelId] = useState(null);
   const [month, setMonth] = useState("all");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(24);
 
   const monthLabel = (m) => new Date(m + "-01T00:00:00").toLocaleDateString(lang === "id" ? "id-ID" : "en-US", { month: "long", year: "numeric" });
 
@@ -50,13 +53,10 @@ export default function PoList() {
 
   // Cache react-query: tampil instan dari cache, refresh otomatis di background.
   const queryClient = useQueryClient();
+  // Dropdown bulan: endpoint ringan (DISTINCT di SQL), bukan memuat seluruh PO.
   const { data: allMonths = [] } = useQuery({
     queryKey: ["po", "months"],
-    queryFn: async () => {
-      const rows = await api.listPos();
-      return [...new Set(rows.map((p) => (p.po_date || p.est_start || "").slice(0, 7)).filter((x) => x.length === 7))].sort().reverse();
-    },
-    refetchOnMount: "always",
+    queryFn: () => api.listPoMonths(),
   });
 
   const downloadPdf = async () => {
@@ -78,12 +78,17 @@ export default function PoList() {
     return query;
   }, [debSearch, bucket, month]);
 
-  const { data: pos = [], isLoading: loading, error } = useQuery({
-    queryKey: ["po", "list", q],
-    queryFn: () => api.listPos(q),
+  // Reset ke halaman 1 saat filter/pencarian/ukuran halaman berubah.
+  useEffect(() => { setPage(1); }, [q, pageSize]);
+
+  // Pagination di server: hanya satu halaman kartu yang dikirim (tanpa log & stage_data).
+  const { data: pageData, isLoading: loading, error } = useQuery({
+    queryKey: ["po", "list", q, page, pageSize],
+    queryFn: () => api.listPosPaged({ ...q, page, page_size: pageSize }),
     placeholderData: keepPreviousData,
-    refetchOnMount: "always",
   });
+  const pos = pageData?.items ?? [];
+  const total = pageData?.total ?? 0;
   useEffect(() => { if (error) toast.error(error?.response?.data?.detail || "Gagal memuat"); }, [error]);
 
   const confirmDelete = async () => {
@@ -170,6 +175,7 @@ export default function PoList() {
           </Empty>
         </Card>
       ) : (
+        <>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {pos.map((po, i) => (
             <Card key={po.id} data-testid={`po-card-${po.po_number}`}
@@ -202,6 +208,18 @@ export default function PoList() {
             </Card>
           ))}
         </div>
+        {total > pageSize && (
+          <TablePagination
+            className="static rounded-xl border border-border/70 shadow-soft"
+            page={page}
+            pageSize={pageSize}
+            total={total}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+            pageSizeOptions={[12, 24, 48, 96]}
+          />
+        )}
+        </>
       )}
 
       <AlertDialog open={!!delId} onOpenChange={(o) => !o && setDelId(null)}>

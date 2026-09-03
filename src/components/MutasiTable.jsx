@@ -31,6 +31,7 @@ import TableSkeleton from "@/components/TableSkeleton";
  *     align?        : "left" | "right"   — perataan sel desktop
  *     headClassName?, cellClassName? : string
  *     cardHidden?   : boolean            — sembunyikan field ini di kartu mobile
+ *     desktopHidden?: boolean            — kolom hanya untuk kartu mobile (mis. badge status yang di desktop sudah ada di kolom lain)
  *     cardClassName?: string             — kelas tambahan wrapper field di kartu (mis. "col-span-2")
  *   }>
  *   data       : Array<row>
@@ -42,6 +43,9 @@ import TableSkeleton from "@/components/TableSkeleton";
  *   }
  *   NOTE: `onDelete` HARUS membuka dialog konfirmasi di pemanggil sebelum benar-benar
  *   menghapus (semua halaman Mutasi memakai AlertDialog / ConfirmDeleteDialog).
+ *   renderActions?(row, { mobile }) : ReactNode — override total isi kolom/footer aksi
+ *     (dipakai halaman non-mutasi, mis. Log & User). Bila diisi, tombol Edit/Hapus default
+ *     tidak dirender. Pemanggil bertanggung jawab atas tap target >= 44px di mobile.
  *   isLoading, skeletonRows
  *   empty      : { icon, title, description }
  *   scrollClassName : kelas wrapper scroll tabel desktop
@@ -61,10 +65,11 @@ export default function MutasiTable({
   className = "",
 }) {
   const cols = columns.filter(Boolean);
+  const desktopCols = cols.filter((c) => !c.desktopHidden);
   const nameCol = cols.find((c) => c.role === "name");
   const statusCol = cols.find((c) => c.role === "status");
   const fieldCols = cols.filter((c) => c !== nameCol && c !== statusCol && !c.cardHidden);
-  const colCount = cols.length + (actions ? 1 : 0);
+  const colCount = desktopCols.length + (actions ? 1 : 0);
   const isEmpty = !isLoading && data.length === 0;
 
   const canModify = (row) => (actions?.canModify ? actions.canModify(row) : true);
@@ -93,7 +98,7 @@ export default function MutasiTable({
           <Table>
             <TableHeader className="sticky top-0 z-10 bg-card">
               <TableRow>
-                {cols.map((c) => (
+                {desktopCols.map((c) => (
                   <TableHead
                     key={c.id}
                     className={cn(c.align === "right" && "text-right", c.headClassName)}
@@ -114,7 +119,7 @@ export default function MutasiTable({
                 const key = rowKey(row, idx);
                 return (
                   <TableRow key={key} className="stagger-in" data-testid={rowTestId ? rowTestId(row) : undefined}>
-                    {cols.map((c) => (
+                    {desktopCols.map((c) => (
                       <TableCell
                         key={c.id}
                         className={cn(c.align === "right" && "text-right", c.cellClassName)}
@@ -124,6 +129,7 @@ export default function MutasiTable({
                     ))}
                     {actions && (
                       <TableCell className="text-right">
+                        {actions.renderActions ? actions.renderActions(row, { mobile: false }) : (
                         <div className="flex justify-end gap-1">
                           <Button
                             size="icon" variant="ghost" aria-label="Edit"
@@ -142,6 +148,7 @@ export default function MutasiTable({
                             <Trash2 className="h-4 w-4 text-destructive" />
                           </Button>
                         </div>
+                        )}
                       </TableCell>
                     )}
                   </TableRow>
@@ -189,9 +196,9 @@ export default function MutasiTable({
               {(nameCol || statusCol) && (
                 <header className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1 break-words text-[15px] font-semibold leading-snug">
-                    {nameCol ? nameCol.render(row) : null}
+                    {nameCol ? (nameCol.cardRender ?? nameCol.render)(row) : null}
                   </div>
-                  {statusCol && <div className="shrink-0">{statusCol.render(row)}</div>}
+                  {statusCol && <div className="shrink-0">{(statusCol.cardRender ?? statusCol.render)(row)}</div>}
                 </header>
               )}
 
@@ -212,6 +219,8 @@ export default function MutasiTable({
               {/* Footer: Edit & Hapus rata kanan, tap target >= 44px */}
               {actions && (
                 <footer className="mt-3 flex justify-end gap-2 border-t border-border/70 pt-3">
+                  {actions.renderActions ? actions.renderActions(row, { mobile: true }) : (
+                  <>
                   <Button
                     variant="outline"
                     className="min-h-[44px] min-w-[44px] gap-2 px-4"
@@ -230,6 +239,8 @@ export default function MutasiTable({
                   >
                     <Trash2 className="h-4 w-4" /> Hapus
                   </Button>
+                  </>
+                  )}
                 </footer>
               )}
             </article>

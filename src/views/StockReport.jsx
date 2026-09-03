@@ -22,7 +22,6 @@ export default function StockReport() {
   const { data, error } = useQuery({
     queryKey: ["reports", "stock"],
     queryFn: async () => (await api.get("/reports/stock")).data,
-    refetchOnMount: "always",
   });
   useEffect(() => { if (error) toast.error(apiError(error)); }, [error]);
 

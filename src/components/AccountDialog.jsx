@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
+import { invalidateUsers } from "@/lib/queryInvalidation";
 import { UserCog, KeyRound, Loader2 } from "lucide-react";
 
 import api from "@/lib/api";
@@ -24,6 +26,7 @@ const initials = (name = "") =>
  */
 export default function AccountDialog({ open, onOpenChange }) {
   const { user, setUser } = useAuth();
+  const queryClient = useQueryClient();
   const isSuper = user?.role === "superadmin";
 
   const [profile, setProfile] = useState({ name: "", email: "", phone: "" });
@@ -48,6 +51,7 @@ export default function AccountDialog({ open, onOpenChange }) {
         email: profile.email.trim(),
         phone: profile.phone.trim(),
       });
+      invalidateUsers(queryClient);
       setUser((prev) => ({ ...prev, ...data.user }));
       toast.success("Profil akun diperbarui.");
       onOpenChange(false);

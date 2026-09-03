@@ -35,7 +35,6 @@ export default function Dashboard() {
   const { data } = useQuery({
     queryKey: ["dashboard"],
     queryFn: async () => (await api.get("/dashboard")).data,
-    refetchOnMount: "always",
   });
 
   if (!data) return <PageContainer isLoading testid="stok-dashboard-loading" />;

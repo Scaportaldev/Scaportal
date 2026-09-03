@@ -128,4 +128,4 @@ export function currentOtherStockForKey(mutations, namaBarang, excludeId = null)
   return round(total, 3);
 }
 
-export { round };
+export { round, finalize };

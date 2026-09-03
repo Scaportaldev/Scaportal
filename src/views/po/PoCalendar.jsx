@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, Plus, X, CalendarDays } from "lucide-react";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
+import { invalidatePo } from "@/lib/queryInvalidation";
 import * as api from "@/lib/poApi";
 import { useLang } from "@/context/LangContext";
 import { fmtDate } from "@/lib/format";
@@ -31,6 +33,7 @@ export default function PoCalendar() {
   const [formStage, setFormStage] = useState("");
   const [formDate, setFormDate] = useState("");
 
+  const queryClient = useQueryClient();
   const load = async () => {
     try { const [s, p] = await Promise.all([api.listSchedules(), api.listPos()]); setSchedules(s); setPos(p); }
     catch (e) { toast.error(e?.response?.data?.detail || "Gagal"); }
@@ -55,12 +58,12 @@ export default function PoCalendar() {
 
   const addSchedule = async () => {
     if (!formPo || !formStage || !formDate) { toast.error(t("selectPO")); return; }
-    try { await api.createSchedule({ po_id: formPo, stage_number: parseInt(formStage), date: formDate }); setOpen(false); load(); toast.success("Jadwal ditambah"); }
+    try { await api.createSchedule({ po_id: formPo, stage_number: parseInt(formStage), date: formDate }); setOpen(false); invalidatePo(queryClient); load(); toast.success("Jadwal ditambah"); }
     catch (e) { toast.error(e?.response?.data?.detail || "Gagal"); }
   };
 
   const delSchedule = async (sid) => {
-    try { await api.deleteSchedule(sid); load(); toast.success("Dihapus"); }
+    try { await api.deleteSchedule(sid); invalidatePo(queryClient); load(); toast.success("Dihapus"); }
     catch (e) { toast.error(e?.response?.data?.detail || "Gagal"); }
   };
 

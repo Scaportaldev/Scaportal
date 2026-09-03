@@ -78,7 +78,6 @@ export default function TempoInvoices() {
   const { data: topOptions = [], refetch: refetchTop } = useQuery({
     queryKey: ["tempo", "top-options"],
     queryFn: tapi.getTopOptions,
-    refetchOnMount: "always",
   });
 
   const params = useMemo(() => {
@@ -92,7 +91,6 @@ export default function TempoInvoices() {
     queryKey: ["tempo", "invoices", params],
     queryFn: () => tapi.getInvoices(params),
     placeholderData: keepPreviousData,
-    refetchOnMount: "always",
   });
   useEffect(() => {
     if (error) toast.error(apiError(error, "Gagal memuat invoice"));

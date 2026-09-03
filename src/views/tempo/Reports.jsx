@@ -103,17 +103,14 @@ export default function TempoReports() {
   const summaryQ = useQuery({
     queryKey: ["tempo", "summary", range],
     queryFn: () => tapi.getSummary(range),
-    refetchOnMount: "always",
   });
   const breakdownQ = useQuery({
     queryKey: ["tempo", "breakdown", range],
     queryFn: () => tapi.getBreakdown(range),
-    refetchOnMount: "always",
   });
   const monthlyQ = useQuery({
     queryKey: ["tempo", "monthly", year],
     queryFn: () => tapi.getMonthly(year),
-    refetchOnMount: "always",
   });
 
   const summary = summaryQ.data;

@@ -2,12 +2,12 @@ import { handle, json } from "@/server/http";
 import { requirePerm } from "@/server/auth";
 import { listPos } from "@/server/po/repo";
 import { computeStatus } from "@/server/po/stages";
+import { cached, TAG_PO } from "@/server/cache";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export const GET = handle(async (req) => {
-  await requirePerm(req, "po");
+async function computePoDashboard() {
   const pos = await listPos({ limit: 100000 });
   const counts = {
     waiting_1: 0, waiting_2: 0, waiting_3: 0,
@@ -26,10 +26,11 @@ export const GET = handle(async (req) => {
       if (counts[c.bucket] !== undefined) counts[c.bucket]++;
     }
   }
-  return json({
-    counts,
-    total_active: active,
-    total_completed: completed,
-    total: pos.length,
-  });
+  return { counts, total_active: active, total_completed: completed, total: pos.length };
+}
+
+/** Ringkasan PO — di-cache (invalidasi otomatis saat PO/jadwal/foto berubah). */
+export const GET = handle(async (req) => {
+  await requirePerm(req, "po");
+  return json(await cached(TAG_PO, "dashboard", computePoDashboard));
 });

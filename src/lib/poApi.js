@@ -1,6 +1,10 @@
 import api from "@/lib/api";
 
 export const listPos = (params = {}) => api.get("/po/pos", { params }).then((r) => r.data);
+/** Daftar PO berhalaman: { items, total, page, page_size, page_count }. */
+export const listPosPaged = (params = {}) => api.get("/po/pos", { params: { page: 1, page_size: 24, ...params } }).then((r) => r.data);
+/** Bulan-bulan yang punya PO ('YYYY-MM', terbaru dulu) untuk dropdown filter. */
+export const listPoMonths = () => api.get("/po/pos/months").then((r) => r.data);
 export const getPo = (id) => api.get(`/po/pos/${id}`).then((r) => r.data);
 export const createPo = (payload) => api.post("/po/pos", payload).then((r) => r.data);
 export const updatePo = (id, payload) => api.put(`/po/pos/${id}`, payload).then((r) => r.data);

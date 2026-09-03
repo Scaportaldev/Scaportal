@@ -20,7 +20,6 @@ export default function PoDashboard() {
   const { data } = useQuery({
     queryKey: ["po", "dashboard"],
     queryFn: () => api.poDashboard(),
-    refetchOnMount: "always",
   });
   const counts = data?.counts || {};
   const goto = (bucket) => navigate(`/po/pos${bucket ? `?bucket=${bucket}` : ""}`);
