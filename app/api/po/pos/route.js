@@ -1,7 +1,8 @@
 import { handle, json, readJson, HttpError, qp } from "@/server/http";
 import { requireAuth } from "@/server/auth";
-import { getDb, COL, stripId, nowIso } from "@/server/mongo";
-import { computeStatus, enrichPo, filterPos } from "@/server/po/stages";
+import { nowIso } from "@/server/db";
+import { listPos, findPoByNumber, insertPo } from "@/server/po/repo";
+import { enrichPo, filterPos } from "@/server/po/stages";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,8 +12,7 @@ export const GET = handle(async (req) => {
   const search = qp(req, "search");
   const bucket = qp(req, "bucket");
   const month = qp(req, "month");
-  const db = await getDb();
-  const docs = await db.collection(COL.pos).find({}).sort({ created_at: -1 }).limit(2000).toArray();
+  const docs = await listPos({ limit: 2000, withLogs: true });
   const enriched = docs.map(enrichPo);
   const filtered = filterPos(enriched, search, bucket, month);
   return json(filtered);
@@ -26,13 +26,14 @@ export const POST = handle(async (req) => {
   if (!poNumber) throw new HttpError(400, "Nomor PO wajib diisi");
   if (!clientName) throw new HttpError(400, "Nama Klien wajib diisi");
 
-  const db = await getDb();
-  const dup = await db.collection(COL.pos).findOne({ po_number: poNumber });
+  const dup = await findPoByNumber(poNumber);
   if (dup) throw new HttpError(400, "Nomor PO sudah ada");
 
   const now = nowIso();
-  const enabledStages = Array.isArray(body.enabled_stages) ? body.enabled_stages.map(Number).filter((n) => n >= 1 && n <= 11) : [];
-  const stageData = body.stage_data || {};
+  const enabledStages = Array.isArray(body.enabled_stages)
+    ? body.enabled_stages.map(Number).filter((n) => n >= 1 && n <= 11)
+    : [];
+  const stageData = body.stage_data && typeof body.stage_data === "object" ? body.stage_data : {};
   enabledStages.forEach((n) => { if (!stageData[String(n)]) stageData[String(n)] = {}; });
 
   const doc = {
@@ -56,6 +57,6 @@ export const POST = handle(async (req) => {
     created_at: now,
     updated_at: now,
   };
-  await db.collection(COL.pos).insertOne({ ...doc });
+  await insertPo(doc);
   return json(enrichPo({ ...doc }));
 });

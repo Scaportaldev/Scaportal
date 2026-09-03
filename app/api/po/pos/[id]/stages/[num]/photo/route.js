@@ -1,7 +1,7 @@
-import { NextResponse } from "next/server";
 import { handle, json, HttpError } from "@/server/http";
 import { requireAuth } from "@/server/auth";
-import { getDb, COL, nowIso } from "@/server/mongo";
+import { nowIso } from "@/server/db";
+import { getPo, updatePo, insertFile } from "@/server/po/repo";
 import { putObject } from "@/server/r2";
 
 // Kompres foto agar preview ringan di semua device/koneksi.
@@ -18,7 +18,6 @@ async function compressImage(buf, contentType) {
       .resize({ width: 1600, height: 1600, fit: "inside", withoutEnlargement: true })
       .jpeg({ quality: 78, mozjpeg: true })
       .toBuffer();
-    // Pakai hasil kompresi hanya jika memang lebih kecil
     if (out.length < buf.length) return out;
     return null;
   } catch (e) {
@@ -49,8 +48,7 @@ export const POST = handle(async (req, { params }) => {
   const file = formData.get("file");
   if (!file || typeof file === "string") throw new HttpError(400, "File tidak ditemukan di form");
 
-  const db = await getDb();
-  const po = await db.collection(COL.pos).findOne({ id });
+  const po = await getPo(id);
   if (!po) throw new HttpError(404, "PO tidak ditemukan");
 
   let buf = Buffer.from(await file.arrayBuffer());
@@ -71,7 +69,7 @@ export const POST = handle(async (req, { params }) => {
 
   const { publicUrl } = await putObject(key, buf, contentType);
 
-  const fileDoc = {
+  await insertFile({
     id: fileId,
     po_id: id,
     stage_number: stageNum,
@@ -83,8 +81,7 @@ export const POST = handle(async (req, { params }) => {
     is_deleted: false,
     uploaded_by: current.username,
     created_at: nowIso(),
-  };
-  await db.collection(COL.poFiles).insertOne({ ...fileDoc });
+  });
 
   const stageData = po.stage_data || {};
   const d = stageData[String(stageNum)] || {};
@@ -92,7 +89,7 @@ export const POST = handle(async (req, { params }) => {
   photos.push({ id: fileId, filename: safeName, url: publicUrl });
   d.photos = photos;
   stageData[String(stageNum)] = d;
-  await db.collection(COL.pos).updateOne({ id }, { $set: { stage_data: stageData, updated_at: nowIso() } });
+  await updatePo(id, { stage_data: stageData, updated_at: nowIso() });
 
   return json({ id: fileId, filename: safeName, url: publicUrl });
 });

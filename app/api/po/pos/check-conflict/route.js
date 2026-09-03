@@ -1,6 +1,6 @@
 import { handle, json, readJson } from "@/server/http";
 import { requireAuth } from "@/server/auth";
-import { getDb, COL } from "@/server/mongo";
+import { listPos } from "@/server/po/repo";
 import { computeStatus, rangesOverlap } from "@/server/po/stages";
 
 export const runtime = "nodejs";
@@ -14,8 +14,7 @@ export const POST = handle(async (req) => {
   const excludeId = body.exclude_id || null;
   if (!estStart || !estEnd) return json({ conflicts: [] });
 
-  const db = await getDb();
-  const docs = await db.collection(COL.pos).find({}).toArray();
+  const docs = await listPos({ limit: 100000 });
   const conflicts = [];
   for (const po of docs) {
     if (excludeId && po.id === excludeId) continue;

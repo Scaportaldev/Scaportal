@@ -31,6 +31,18 @@ ENV NODE_ENV=production \
 COPY --from=builder --chown=node:node /app/.next/standalone ./
 COPY --from=builder --chown=node:node /app/.next/static ./.next/static
 COPY --from=builder --chown=node:node /app/public ./public
+# Script migrasi data Mongo -> MariaDB (dijalankan manual lewat Terminal Coolify bila perlu).
+# Standalone output hanya membawa dependensi yang di-trace, jadi mongodb + mysql2 disalin eksplisit.
+COPY --from=builder --chown=node:node /app/scripts ./scripts
+COPY --from=builder --chown=node:node /app/src/server/schema.js ./src/server/schema.js
+COPY --from=builder --chown=node:node /app/node_modules/mongodb ./node_modules/mongodb
+COPY --from=builder --chown=node:node /app/node_modules/bson ./node_modules/bson
+COPY --from=builder --chown=node:node /app/node_modules/mongodb-connection-string-url ./node_modules/mongodb-connection-string-url
+COPY --from=builder --chown=node:node /app/node_modules/@mongodb-js ./node_modules/@mongodb-js
+COPY --from=builder --chown=node:node /app/node_modules/whatwg-url ./node_modules/whatwg-url
+COPY --from=builder --chown=node:node /app/node_modules/tr46 ./node_modules/tr46
+COPY --from=builder --chown=node:node /app/node_modules/webidl-conversions ./node_modules/webidl-conversions
+COPY --from=builder --chown=node:node /app/node_modules/punycode ./node_modules/punycode
 
 USER node
 EXPOSE 3000

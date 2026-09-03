@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { handle, readJson, HttpError } from "@/server/http";
-import { getDb, COL, nowIso } from "@/server/mongo";
+import { nowIso } from "@/server/db";
 import { verifyPassword, createAccessToken, setAuthCookie } from "@/server/auth";
+import { findUserByUsername } from "@/server/users";
+import { insertActivity } from "@/server/logs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,8 +18,7 @@ export const POST = handle(async (req) => {
     throw new HttpError(400, "Pilih role terlebih dahulu");
   }
 
-  const db = await getDb();
-  const user = await db.collection(COL.users).findOne({ username });
+  const user = await findUserByUsername(username);
   if (!user || !verifyPassword(password, user.password_hash)) {
     throw new HttpError(401, "Username atau password salah");
   }
@@ -29,14 +30,12 @@ export const POST = handle(async (req) => {
   }
 
   const sid = crypto.randomUUID();
-  await db.collection(COL.activityLogs).insertOne({
+  await insertActivity({
     id: sid,
     user_id: user.id,
     name: user.name,
     username: user.username,
     login_time: nowIso(),
-    logout_time: null,
-    logout_type: null,
   });
 
   const token = await createAccessToken({

@@ -1,6 +1,6 @@
 import { handle, pdfResponse, qp, HttpError } from "@/server/http";
 import { getCurrentUser, requireSectionAccess } from "@/server/auth";
-import { COL, currentYear } from "@/server/mongo";
+import { currentYear } from "@/server/db";
 import { allYear, computeStock, computeDetail } from "@/server/reports";
 import { NAME_FIELD } from "@/server/mutations";
 import { formatDateId } from "@/server/format";
@@ -33,9 +33,9 @@ function filterAsc(rows, { start, end, jenis, transaksi, supplier }, type) {
 }
 
 const MUTATION_KINDS = {
-  "paper-mutations": { type: "paper", collection: COL.paper, builder: paperMutationsPdf, file: "laporan-mutasi-kertas.pdf" },
-  "ink-mutations": { type: "ink", collection: COL.ink, builder: inkMutationsPdf, file: "laporan-mutasi-tinta.pdf" },
-  "other-mutations": { type: "other", collection: COL.other, builder: otherMutationsPdf, file: "laporan-mutasi-lain.pdf" },
+  "paper-mutations": { type: "paper", builder: paperMutationsPdf, file: "laporan-mutasi-kertas.pdf" },
+  "ink-mutations": { type: "ink", builder: inkMutationsPdf, file: "laporan-mutasi-tinta.pdf" },
+  "other-mutations": { type: "other", builder: otherMutationsPdf, file: "laporan-mutasi-lain.pdf" },
 };
 
 export const GET = handle(async (req, { params }) => {
@@ -48,7 +48,7 @@ export const GET = handle(async (req, { params }) => {
     await getCurrentUser(req);
     const cfg = MUTATION_KINDS[kind];
     const rows = filterAsc(
-      await allYear(cfg.collection, currentYear()),
+      await allYear(cfg.type, currentYear()),
       { start, end, jenis: qp(req, "jenis"), transaksi: qp(req, "transaksi"), supplier: qp(req, "supplier") },
       cfg.type,
     );

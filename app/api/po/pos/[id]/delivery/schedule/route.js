@@ -1,6 +1,7 @@
 import { handle, json, readJson, HttpError } from "@/server/http";
 import { requireAuth } from "@/server/auth";
-import { getDb, COL, nowIso } from "@/server/mongo";
+import { nowIso } from "@/server/db";
+import { getPo, updatePo } from "@/server/po/repo";
 import { enrichPo } from "@/server/po/stages";
 
 export const runtime = "nodejs";
@@ -10,8 +11,7 @@ export const POST = handle(async (req, { params }) => {
   const current = await requireAuth(req);
   const { id } = await params;
   const body = await readJson(req);
-  const db = await getDb();
-  const po = await db.collection(COL.pos).findOne({ id });
+  const po = await getPo(id);
   if (!po) throw new HttpError(404, "PO tidak ditemukan");
 
   const stageData = po.stage_data || {};
@@ -29,9 +29,11 @@ export const POST = handle(async (req, { params }) => {
   stageData["11"] = d11;
 
   const now = nowIso();
-  const logs = po.logs || [];
-  logs.push({ timestamp: now, message: `Jadwal kirim dibuat (${body.scheduled_date || "-"}, supir: ${body.driver_name || "-"}) oleh ${current.username}`, user: current.username });
-  await db.collection(COL.pos).updateOne({ id }, { $set: { stage_data: stageData, logs, updated_at: now } });
-  const updated = await db.collection(COL.pos).findOne({ id });
-  return json(enrichPo(updated));
+  const log = {
+    timestamp: now,
+    message: `Jadwal kirim dibuat (${body.scheduled_date || "-"}, supir: ${body.driver_name || "-"}) oleh ${current.username}`,
+    user: current.username,
+  };
+  await updatePo(id, { stage_data: stageData, updated_at: now }, [log]);
+  return json(enrichPo(await getPo(id)));
 });

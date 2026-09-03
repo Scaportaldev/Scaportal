@@ -1,7 +1,10 @@
 import bcrypt from "bcryptjs";
 import { SignJWT, jwtVerify } from "jose";
-import { getDb, COL, nowIso } from "@/server/mongo";
+import { nowIso } from "@/server/db";
 import { HttpError } from "@/server/http";
+import { findUserById } from "@/server/users";
+import { getSetting } from "@/server/settings";
+import { insertAudit } from "@/server/logs";
 
 const ALG = "HS256";
 export const TOKEN_HOURS = 12;
@@ -79,8 +82,7 @@ export async function getCurrentUser(req) {
   }
   if (payload.type !== "access") throw new HttpError(401, "Token tidak valid");
 
-  const db = await getDb();
-  const user = await db.collection(COL.users).findOne({ id: payload.sub });
+  const user = await findUserById(payload.sub);
   if (!user) throw new HttpError(401, "User tidak ditemukan");
   if (user.active === false) throw new HttpError(403, "User dinonaktifkan");
 
@@ -88,6 +90,8 @@ export async function getCurrentUser(req) {
     id: user.id,
     name: user.name,
     username: user.username,
+    email: user.email || "",
+    phone: user.phone || "",
     role: user.role,
     active: user.active !== false,
     sid: payload.sid,
@@ -101,17 +105,16 @@ export async function requireSuperadmin(req) {
   return user;
 }
 
-/** Superadmin ATAU admin (untuk tool PO Tracker yang bisa diakses keduanya). */
+/** Superadmin ATAU admin (untuk tool yang bisa diakses keduanya). */
 export async function requireAuth(req) {
   return await getCurrentUser(req);
 }
 
 export async function verifyTempPassword(password) {
   if (!password) return false;
-  const db = await getDb();
-  const setting = await db.collection(COL.settings).findOne({ key: "temp_password" });
-  if (!setting) return false;
-  return verifyPassword(password, setting.hash);
+  const hash = await getSetting("temp_password");
+  if (!hash) return false;
+  return verifyPassword(password, hash);
 }
 
 /** Superadmin bebas; role lain wajib kirim header X-Section-Password yang benar. */
@@ -124,8 +127,7 @@ export async function requireSectionAccess(req) {
 }
 
 export async function logAudit(current, action, mutationType, mutationId, before, after) {
-  const db = await getDb();
-  await db.collection(COL.auditLogs).insertOne({
+  await insertAudit({
     id: crypto.randomUUID(),
     user_id: current.id,
     name: current.name,

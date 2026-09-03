@@ -1,6 +1,7 @@
 import { handle, json, readJson, HttpError } from "@/server/http";
 import { requireAuth } from "@/server/auth";
-import { getDb, COL, nowIso } from "@/server/mongo";
+import { nowIso } from "@/server/db";
+import { getPo, updatePo } from "@/server/po/repo";
 import { enrichPo } from "@/server/po/stages";
 
 export const runtime = "nodejs";
@@ -13,8 +14,7 @@ export const POST = handle(async (req, { params }) => {
   const status = String(body.status || "");
   if (!(["success", "failed"].includes(status))) throw new HttpError(400, "Status tidak valid");
 
-  const db = await getDb();
-  const po = await db.collection(COL.pos).findOne({ id });
+  const po = await getPo(id);
   if (!po) throw new HttpError(404, "PO tidak ditemukan");
 
   const stageData = po.stage_data || {};
@@ -28,11 +28,9 @@ export const POST = handle(async (req, { params }) => {
   d11.delivery_attempts = attempts;
   stageData["11"] = d11;
 
-  const logs = po.logs || [];
+  const now = nowIso();
   const msg = `Pengiriman ${status === "success" ? "BERHASIL" : "GAGAL"}${status === "failed" ? ` (alasan: ${last.failure_reason})` : ""} - dicatat oleh ${current.username}`;
-  logs.push({ timestamp: nowIso(), message: msg, user: current.username });
 
-  await db.collection(COL.pos).updateOne({ id }, { $set: { stage_data: stageData, logs, updated_at: nowIso() } });
-  const updated = await db.collection(COL.pos).findOne({ id });
-  return json(enrichPo(updated));
+  await updatePo(id, { stage_data: stageData, updated_at: now }, [{ timestamp: now, message: msg, user: current.username }]);
+  return json(enrichPo(await getPo(id)));
 });

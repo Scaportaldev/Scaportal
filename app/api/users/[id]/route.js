@@ -1,6 +1,7 @@
 import { handle, json, readJson, HttpError } from "@/server/http";
 import { requireSuperadmin, hashPassword, logAudit } from "@/server/auth";
-import { getDb, COL, nowIso } from "@/server/mongo";
+import { nowIso } from "@/server/db";
+import { findUserById, findUserByUsername, updateUser, deleteUser, safeUser } from "@/server/users";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -8,11 +9,10 @@ export const dynamic = "force-dynamic";
 export const DELETE = handle(async (req, { params }) => {
   const current = await requireSuperadmin(req);
   const { id } = await params;
-  const db = await getDb();
-  const user = await db.collection(COL.users).findOne({ id });
+  const user = await findUserById(id);
   if (!user) throw new HttpError(404, "User tidak ditemukan");
   if (user.id === current.id) throw new HttpError(400, "Tidak bisa menghapus diri sendiri");
-  await db.collection(COL.users).deleteOne({ id });
+  await deleteUser(id);
   return json({ success: true });
 });
 
@@ -27,8 +27,7 @@ export const PATCH = handle(async (req, { params }) => {
   const { id } = await params;
   const body = await readJson(req);
 
-  const db = await getDb();
-  const user = await db.collection(COL.users).findOne({ id });
+  const user = await findUserById(id);
   if (!user) throw new HttpError(404, "User tidak ditemukan");
 
   const set = {};
@@ -43,7 +42,7 @@ export const PATCH = handle(async (req, { params }) => {
     const username = String(body.username || "").trim();
     if (!username) throw new HttpError(400, "Username wajib diisi");
     if (username !== user.username) {
-      const dup = await db.collection(COL.users).findOne({ username });
+      const dup = await findUserByUsername(username);
       if (dup) throw new HttpError(400, "Username sudah dipakai");
       set.username = username;
     }
@@ -76,8 +75,8 @@ export const PATCH = handle(async (req, { params }) => {
   if (!Object.keys(set).length) throw new HttpError(400, "Tidak ada perubahan");
 
   set.updated_at = nowIso();
-  await db.collection(COL.users).updateOne({ id }, { $set: set });
-  const fresh = await db.collection(COL.users).findOne({ id });
+  await updateUser(id, set);
+  const fresh = await findUserById(id);
 
   try {
     await logAudit(
@@ -96,6 +95,5 @@ export const PATCH = handle(async (req, { params }) => {
     );
   } catch { /* audit gagal tidak menggagalkan aksi utama */ }
 
-  const { password_hash, _id, ...safe } = fresh;
-  return json({ success: true, user: safe, self: user.id === current.id });
+  return json({ success: true, user: safeUser(fresh), self: user.id === current.id });
 });

@@ -1,6 +1,7 @@
 import { handle, json, readJson, HttpError } from "@/server/http";
 import { requireSuperadmin } from "@/server/auth";
-import { getDb, COL, stripId, nowIso } from "@/server/mongo";
+import { nowIso } from "@/server/db";
+import { getCalculation, updateCalculation, deleteCalculation } from "@/server/hpp";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -8,18 +9,16 @@ export const dynamic = "force-dynamic";
 export const GET = handle(async (req, { params }) => {
   await requireSuperadmin(req);
   const { id } = await params;
-  const db = await getDb();
-  const doc = await db.collection(COL.hppCalcs).findOne({ id });
+  const doc = await getCalculation(id);
   if (!doc) throw new HttpError(404, "Perhitungan tidak ditemukan");
-  return json(stripId(doc));
+  return json(doc);
 });
 
 export const PUT = handle(async (req, { params }) => {
   await requireSuperadmin(req);
   const { id } = await params;
   const body = await readJson(req);
-  const db = await getDb();
-  const existing = await db.collection(COL.hppCalcs).findOne({ id });
+  const existing = await getCalculation(id);
   if (!existing) throw new HttpError(404, "Perhitungan tidak ditemukan");
   const update = {
     name: String(body.name || existing.name).trim(),
@@ -29,16 +28,14 @@ export const PUT = handle(async (req, { params }) => {
     result: body.result || existing.result || {},
     updated_at: nowIso(),
   };
-  await db.collection(COL.hppCalcs).updateOne({ id }, { $set: update });
-  const merged = { ...stripId(existing), ...update };
-  return json(merged);
+  await updateCalculation(id, update);
+  return json({ ...existing, ...update });
 });
 
 export const DELETE = handle(async (req, { params }) => {
   await requireSuperadmin(req);
   const { id } = await params;
-  const db = await getDb();
-  const res = await db.collection(COL.hppCalcs).deleteOne({ id });
-  if (res.deletedCount === 0) throw new HttpError(404, "Perhitungan tidak ditemukan");
+  const deleted = await deleteCalculation(id);
+  if (!deleted) throw new HttpError(404, "Perhitungan tidak ditemukan");
   return json({ ok: true });
 });

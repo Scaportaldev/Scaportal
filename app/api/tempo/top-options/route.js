@@ -1,7 +1,6 @@
 import { handle, json, readJson, HttpError } from "@/server/http";
 import { requireSuperadmin } from "@/server/auth";
-import { getDb, COL } from "@/server/mongo";
-import { ensureTopSeed, saveTopOptions, nowIso } from "@/server/tempo";
+import { ensureTopSeed, saveTopOptions, renameTopInInvoices } from "@/server/tempo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,11 +34,7 @@ export const PUT = handle(async (req) => {
 
   values = values.map((v) => (v === old ? next : v));
   await saveTopOptions(values);
-
-  const db = await getDb();
-  await db
-    .collection(COL.tempoInvoices)
-    .updateMany({ top: old }, { $set: { top: next, updated_at: nowIso() } });
+  await renameTopInInvoices(old, next);
 
   return json({ values });
 });

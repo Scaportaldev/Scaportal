@@ -1,22 +1,13 @@
 import { handle, json, readJson, HttpError, qp } from "@/server/http";
 import { requireAuth } from "@/server/auth";
-import { getDb, COL } from "@/server/mongo";
-import { newId, nowIso, num, validateItemStatus, getPoOr404 } from "@/server/klien";
+import { newId, nowIso, num, validateItemStatus, getPoOr404, listItems, insertItem } from "@/server/klien";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export const GET = handle(async (req) => {
   await requireAuth(req);
-  const poId = qp(req, "po_id");
-  const db = await getDb();
-  const rows = await db
-    .collection(COL.klienItems)
-    .find(poId ? { po_id: poId } : {}, { projection: { _id: 0 } })
-    .sort({ created_at: 1 })
-    .limit(100000)
-    .toArray();
-  return json(rows);
+  return json(await listItems(qp(req, "po_id")));
 });
 
 export const POST = handle(async (req) => {
@@ -43,7 +34,6 @@ export const POST = handle(async (req) => {
     status,
     created_at: nowIso(),
   };
-  const db = await getDb();
-  await db.collection(COL.klienItems).insertOne({ ...doc });
+  await insertItem(doc);
   return json(doc, 201);
 });

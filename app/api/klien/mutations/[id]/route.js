@@ -1,16 +1,15 @@
 import { handle, json, readJson, HttpError } from "@/server/http";
 import { requireAuth } from "@/server/auth";
-import { getDb, COL } from "@/server/mongo";
-import { num, validateMutasiJenis } from "@/server/klien";
+import {
+  num, validateMutasiJenis, getMutationOr404, getItemOr404, updateMutationTx, deleteMutationTx,
+} from "@/server/klien";
+import { queryOne, fromRow } from "@/server/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-async function getMutationOr404(id) {
-  const db = await getDb();
-  const m = await db.collection(COL.klienMutations).findOne({ id }, { projection: { _id: 0 } });
-  if (!m) throw new HttpError(404, "Mutasi tidak ditemukan");
-  return m;
+async function findItem(id) {
+  return fromRow(await queryOne("SELECT * FROM `klien_items` WHERE `id`=?", [id]));
 }
 
 export const PUT = handle(async (req, { params }) => {
@@ -19,8 +18,7 @@ export const PUT = handle(async (req, { params }) => {
   const m = await getMutationOr404(id);
   const body = await readJson(req);
 
-  const db = await getDb();
-  const item = await db.collection(COL.klienItems).findOne({ id: m.item_id }, { projection: { _id: 0 } });
+  const item = await findItem(m.item_id);
   if (!item) throw new HttpError(404, "Item terkait tidak ditemukan");
 
   const newJenis = body?.jenis || m.jenis;
@@ -42,25 +40,22 @@ export const PUT = handle(async (req, { params }) => {
   if (body?.tanggal !== undefined && body.tanggal !== null) updates.tanggal = body.tanggal;
   if (body?.keterangan !== undefined && body.keterangan !== null) updates.keterangan = String(body.keterangan);
 
-  await db.collection(COL.klienMutations).updateOne({ id }, { $set: updates });
-  await db.collection(COL.klienItems).updateOne({ id: item.id }, { $set: { kuantiti: newQty } });
-
-  return json(await db.collection(COL.klienMutations).findOne({ id }, { projection: { _id: 0 } }));
+  await updateMutationTx(id, updates, item.id, newQty);
+  return json(await getMutationOr404(id));
 });
 
 export const DELETE = handle(async (req, { params }) => {
   await requireAuth(req);
   const { id } = await params;
   const m = await getMutationOr404(id);
-  const db = await getDb();
-  const item = await db.collection(COL.klienItems).findOne({ id: m.item_id }, { projection: { _id: 0 } });
+  const item = await findItem(m.item_id);
 
+  let newQty = null;
   if (item) {
     const effect = m.jenis === "masuk" ? num(m.jumlah) : -num(m.jumlah);
-    const newQty = num(item.kuantiti) - effect;
+    newQty = num(item.kuantiti) - effect;
     if (newQty < 0) throw new HttpError(400, "Tidak dapat menghapus mutasi karena stok akan menjadi negatif");
-    await db.collection(COL.klienItems).updateOne({ id: item.id }, { $set: { kuantiti: newQty } });
   }
-  await db.collection(COL.klienMutations).deleteOne({ id });
+  await deleteMutationTx(id, item ? item.id : null, newQty);
   return json({ ok: true });
 });

@@ -1,0 +1,13 @@
+# Alternatif: deploy phpMyAdmin di Coolify sebagai "Docker Compose" resource.
+# Ganti PMA_HOST dengan host internal MariaDB Anda, lalu set domain https://db.scaportal.cloud di Coolify.
+services:
+  phpmyadmin:
+    image: phpmyadmin:latest
+    restart: unless-stopped
+    environment:
+      - PMA_HOST=${PMA_HOST:-04ufjpxd8weyexh5ffwmap6o}
+      - PMA_PORT=3306
+      - PMA_ABSOLUTE_URI=${PMA_ABSOLUTE_URI:-https://db.scaportal.cloud/}
+      - UPLOAD_LIMIT=256M
+    expose:
+      - "80"

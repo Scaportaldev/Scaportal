@@ -1,8 +1,7 @@
 import { handle, json, qp, readJson } from "@/server/http";
 import { getCurrentUser } from "@/server/auth";
-import { getDb, stripId } from "@/server/mongo";
 import {
-  collectionFor, buildDoc, assertStockAvailable, filterRows, stampCreate,
+  buildDoc, assertStockAvailable, filterRows, stampCreate, listMutations, insertMutation,
 } from "@/server/mutations";
 
 export const runtime = "nodejs";
@@ -11,12 +10,9 @@ export const dynamic = "force-dynamic";
 export const GET = handle(async (req, { params }) => {
   await getCurrentUser(req);
   const { type } = await params;
-  const collection = collectionFor(type);
-  const db = await getDb();
 
   const year = qp(req, "year");
-  const query = year ? { year: Number(year) } : {};
-  const docs = (await db.collection(collection).find(query).toArray()).map(stripId);
+  const docs = await listMutations(type, year ? { year: Number(year) } : {});
 
   const rows = filterRows(
     docs,
@@ -32,14 +28,12 @@ export const GET = handle(async (req, { params }) => {
 export const POST = handle(async (req, { params }) => {
   const current = await getCurrentUser(req);
   const { type } = await params;
-  const collection = collectionFor(type);
   const body = await readJson(req);
 
   const doc = buildDoc(type, body);
   await assertStockAvailable(type, doc);
   const full = stampCreate(doc, current);
 
-  const db = await getDb();
-  await db.collection(collection).insertOne({ ...full });
+  await insertMutation(type, full);
   return json(full);
 });

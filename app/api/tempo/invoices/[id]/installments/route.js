@@ -1,7 +1,6 @@
 import { handle, json, readJson, HttpError } from "@/server/http";
 import { requireSuperadmin } from "@/server/auth";
-import { getDb, COL } from "@/server/mongo";
-import { getInvoiceOr404, enrich, num, newId, nowIso } from "@/server/tempo";
+import { getInvoiceOr404, enrich, num, newId, nowIso, updateInvoice } from "@/server/tempo";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,7 +27,6 @@ export const POST = handle(async (req, { params }) => {
   const update = { installments, updated_at: nowIso() };
   if (total > 0 && paid >= total) update.status = "lunas";
 
-  const db = await getDb();
-  await db.collection(COL.tempoInvoices).updateOne({ id }, { $set: update });
-  return json(enrich(await db.collection(COL.tempoInvoices).findOne({ id })));
+  await updateInvoice(id, update);
+  return json(enrich(await getInvoiceOr404(id)));
 });
