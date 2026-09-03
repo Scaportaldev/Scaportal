@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
-  PieChart, Pie, Cell, BarChart, Bar, AreaChart, Area,
-  XAxis, YAxis, CartesianGrid, Label as RLabel,
+  BarChart, Bar, AreaChart, Area,
+  XAxis, YAxis, CartesianGrid,
 } from "recharts";
 import { FileDown, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { toast } from "sonner";
@@ -12,6 +12,7 @@ import SectionGate from "@/components/SectionGate";
 import PeriodFilter from "@/components/PeriodFilter";
 import StatCard from "@/components/StatCard";
 import ChartBox from "@/components/ChartBox";
+import CompositionDonut from "@/components/CompositionDonut";
 import PageContainer from "@/components/layout/PageContainer";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card } from "@/components/ui/card";
@@ -28,19 +29,6 @@ import {
 import {
   ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent,
 } from "@/components/ui/chart";
-import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription } from "@/components/ui/empty";
-
-const COLORS = ["hsl(var(--chart-1))", "hsl(var(--chart-2))", "hsl(var(--chart-3))", "hsl(var(--chart-4))", "hsl(var(--chart-5))"];
-
-/** Gabungkan entri dengan nama sama supaya legend & key chart tetap unik. */
-function mergeByName(list = []) {
-  const map = new Map();
-  list.forEach((it) => {
-    const key = it.name || "Lainnya";
-    map.set(key, (map.get(key) || 0) + (it.value || 0));
-  });
-  return [...map.entries()].map(([name, value]) => ({ name, value }));
-}
 
 const TREND_CONFIG = {
   paper_masuk: { label: "Kertas Masuk", color: "hsl(var(--chart-1))" },
@@ -194,62 +182,26 @@ function Inner() {
             </div>
           </Card>
 
-          {/* Composition pies */}
+          {/* Komposisi nominal — donut + legend sebagai daftar terpisah */}
           <div className="grid gap-4 lg:grid-cols-3">
-            {[["Komposisi Nominal Kertas", data.paper_composition], ["Komposisi Nominal Tinta", data.ink_composition], ["Komposisi Nominal Lain", data.other_composition || []]].map(([title, rawComp]) => {
-              const comp = mergeByName(rawComp);
-              return (
-              <Card key={title} className="p-5">
-                <h3 className="mb-2 font-display text-lg font-bold">{title}</h3>
-                <ChartBox className="h-64">
-                  {comp.length ? (
-                    <ChartContainer
-                      config={Object.fromEntries(comp.map((c, i) => [c.name, { label: c.name, color: COLORS[i % COLORS.length] }]))}
-                    >
-                      <PieChart>
-                        <ChartTooltip
-                          content={<ChartTooltipContent hideLabel formatter={(v) => formatRupiah(v)} />}
-                        />
-                        <Pie
-                          data={comp}
-                          dataKey="value"
-                          nameKey="name"
-                          innerRadius={54}
-                          outerRadius={84}
-                          paddingAngle={2}
-                          strokeWidth={2}
-                          stroke="hsl(var(--card))"
-                        >
-                          {comp.map((c, i) => <Cell key={c.name} fill={COLORS[i % COLORS.length]} />)}
-                          <RLabel
-                            content={({ viewBox }) => {
-                              if (!viewBox || !("cx" in viewBox)) return null;
-                              const total = comp.reduce((a, b) => a + (b.value || 0), 0);
-                              return (
-                                <text x={viewBox.cx} y={viewBox.cy} textAnchor="middle" dominantBaseline="middle">
-                                  <tspan x={viewBox.cx} y={viewBox.cy - 8} className="fill-muted-foreground text-[10px] uppercase tracking-[0.15em]">Total</tspan>
-                                  <tspan x={viewBox.cx} y={viewBox.cy + 12} className="fill-foreground font-mono text-sm font-bold">{formatRupiah(total)}</tspan>
-                                </text>
-                              );
-                            }}
-                          />
-                        </Pie>
-                        <ChartLegend content={<ChartLegendContent />} />
-                      </PieChart>
-                    </ChartContainer>
-                  ) : (
-                    <Empty className="h-full py-0">
-                      <EmptyHeader>
-                        <EmptyMedia variant="icon"><Wallet /></EmptyMedia>
-                        <EmptyTitle>Belum ada data nominal</EmptyTitle>
-                        <EmptyDescription>Nominal muncul setelah ada mutasi masuk pada periode ini.</EmptyDescription>
-                      </EmptyHeader>
-                    </Empty>
-                  )}
-                </ChartBox>
-              </Card>
-              );
-            })}
+            <CompositionDonut
+              testId="komposisi-kertas"
+              title="Komposisi Nominal Kertas"
+              data={data.paper_composition}
+              icon={<FileStack />}
+            />
+            <CompositionDonut
+              testId="komposisi-tinta"
+              title="Komposisi Nominal Tinta"
+              data={data.ink_composition}
+              icon={<Droplets />}
+            />
+            <CompositionDonut
+              testId="komposisi-lain"
+              title="Komposisi Nominal Lain"
+              data={data.other_composition || []}
+              icon={<Package />}
+            />
           </div>
 
           {/* Monthly trend + value */}
