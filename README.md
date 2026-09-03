@@ -380,7 +380,18 @@ Superadmin di-seed dari `SUPERADMIN_USERNAME` / `SUPERADMIN_PASSWORD`.
 
 ### Impor data contoh / dummy
 
-`deploy/dummy_data.sql` berisi 839 baris (users, mutasi kertas/tinta/lainnya, PO, klien, invoice tempo, log).
+`deploy/dummy_data.sql` berisi 1.150 baris di 19 tabel (users, mutasi kertas/tinta/lainnya, PO + jadwal + log, klien + item + mutasi, invoice tempo + cicilan, kalkulasi HPP, activity & audit log).
+
+Termasuk 150 record dummy hasil sesi pengujian E2E — dibuat lewat API aplikasi (bukan `INSERT` langsung), jadi
+seluruh validasi bisnis dan log audit ikut terbentuk wajar:
+
+| Penginput | Data |
+| --- | --- |
+| `Staff1` (Stok SCA) | 30 mutasi kertas, 15 mutasi tinta, 15 mutasi lain |
+| `Staff2` (PO + Stok Klien) | 12 PO, 12 jadwal produksi, 5 klien, 8 PO klien, 12 item titipan, 16 mutasi klien |
+| `Staff3` (Tempo + HPP) | 15 invoice (termasuk cicilan), 10 perhitungan HPP |
+
+Dump di-generate ulang dengan `node tests/gen_dummy_sql.mjs` dan divalidasi `node tests/validate_dummy_sql.mjs`.
 
 - **phpMyAdmin** → database `default` → tab **Import** → unggah `deploy/dummy_data.sql` → Import, **atau**
 - Terminal container MariaDB di Coolify: `mariadb -u mariadb -p default < deploy/dummy_data.sql`

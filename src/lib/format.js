@@ -25,6 +25,25 @@ const idr = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 2, minimumFr
 
 export const formatRp = (v) => "Rp " + idr.format(n(v));
 
+/**
+ * Rupiah ringkas untuk ruang sempit (tengah donut, baris legend, kartu KPI).
+ * Contoh: 4.966.225.676 -> "Rp 4,97 M" | 102.592.643 -> "Rp 102,6 Jt".
+ * Nominal persisnya tetap ditampilkan lewat formatRupiah di tempat yang lega.
+ */
+export const formatRupiahCompact = (v) => {
+  const num = n(v);
+  const abs = Math.abs(num);
+  const sign = num < 0 ? "-" : "";
+  const fmt = (val, digits) =>
+    new Intl.NumberFormat("id-ID", { maximumFractionDigits: digits, minimumFractionDigits: 0 }).format(val);
+
+  if (abs >= 1e12) return `${sign}Rp ${fmt(abs / 1e12, 2)} T`;
+  if (abs >= 1e9) return `${sign}Rp ${fmt(abs / 1e9, 2)} M`;
+  if (abs >= 1e6) return `${sign}Rp ${fmt(abs / 1e6, 1)} Jt`;
+  if (abs >= 1e3) return `${sign}Rp ${fmt(abs / 1e3, 0)} Rb`;
+  return `${sign}Rp ${fmt(abs, 0)}`;
+};
+
 export const formatNum = (v, digits = 2) =>
   new Intl.NumberFormat("id-ID", { maximumFractionDigits: digits }).format(n(v));
 
