@@ -1,4 +1,4 @@
-import { handle, json, readJson, HttpError, qp } from "@/server/http";
+import { handle, json, readJson, HttpError, qp, pageParams, paged } from "@/server/http";
 import { requirePerm } from "@/server/auth";
 import { nowIso } from "@/server/db";
 import { listPos, findPoByNumber, insertPo } from "@/server/po/repo";
@@ -7,15 +7,29 @@ import { enrichPo, filterPos } from "@/server/po/stages";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+/**
+ * GET /api/po/pos?search=&bucket=&month=[&page=&page_size=]
+ * - search & month difilter di SQL; bucket (status turunan JSON stage_data) tetap di JS.
+ * - Tidak lagi mengirim po_logs (hanya dibutuhkan halaman detail: GET /api/po/pos/:id).
+ * - Tanpa ?page -> array (kompatibel: kalender, skrip). Dengan ?page -> { items, total, ... }
+ *   dan item dibuat ringkas (tanpa stage_data/logs) karena kartu daftar hanya butuh `computed`.
+ */
 export const GET = handle(async (req) => {
   await requirePerm(req, "po");
   const search = qp(req, "search");
   const bucket = qp(req, "bucket");
   const month = qp(req, "month");
-  const docs = await listPos({ limit: 2000, withLogs: true });
+  const pg = pageParams(req, { defaultSize: 24, maxSize: 200 });
+
+  const docs = await listPos({ limit: 2000, withLogs: false, search, month });
   const enriched = docs.map(enrichPo);
-  const filtered = filterPos(enriched, search, bucket, month);
-  return json(filtered);
+  const filtered = bucket ? filterPos(enriched, null, bucket, null) : enriched;
+  if (!pg) return json(filtered);
+
+  const items = filtered
+    .slice(pg.offset, pg.offset + pg.pageSize)
+    .map(({ stage_data, logs, ...rest }) => rest);
+  return json(paged(items, filtered.length, pg));
 });
 
 export const POST = handle(async (req) => {

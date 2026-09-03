@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { CalendarX, FileDown, Trash2, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
+import { invalidateEverything } from "@/lib/queryInvalidation";
 import api, { downloadPdf } from "@/lib/api";
 import { useAuth, apiError } from "@/context/AuthContext";
 import SectionGate from "@/components/SectionGate";
@@ -19,6 +21,7 @@ import {
 
 function Inner() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const isSuper = user?.role === "superadmin";
   const year = new Date().getFullYear();
   const [steps, setSteps] = useState({ paper: false, ink: false, nominal: false });
@@ -67,6 +70,7 @@ function Inner() {
     setBusy(true);
     try {
       const { data } = await api.post("/year/close");
+      invalidateEverything(queryClient); // semua halaman (dashboard, laporan, mutasi, log) harus segar
       toast.success(`Tahun ditutup. ${data.paper_deleted + data.ink_deleted} mutasi dihapus.`);
       setConfirmOpen(false);
       setSteps({ paper: false, ink: false, nominal: false });

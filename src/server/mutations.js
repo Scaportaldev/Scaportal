@@ -4,12 +4,11 @@
  */
 import {
   query, queryOne, insertRow, updateRow, deleteRows, fromRow, fromRows,
-  toDateTime, toDate, nowIso, todayStr, q,
+  toDateTime, toDate, nowIso, todayStr, q, likeContains,
 } from "@/server/db";
 import { HttpError } from "@/server/http";
-import {
-  computeHargaPerRim, currentPaperStockForKey, currentInkStockForKey, currentOtherStockForKey,
-} from "@/server/stock";
+import { computeHargaPerRim, round } from "@/server/stock";
+import { cached, invalidate, TAG_STOK } from "@/server/cache";
 
 export const TYPES = ["paper", "ink", "other"];
 
@@ -37,6 +36,13 @@ const TYPE_COLS = {
   other: ["nama_barang", "satuan", "harga_per_satuan"],
 };
 const SPEC = { bools: ["ppn_ada"] };
+
+/**
+ * Kuantitas bertanda dalam SQL — cermin persis signedQty() di stock.js:
+ * masuk +jumlah, retur +jumlah, keluar -jumlah, lainnya 0.
+ */
+export const SIGNED_QTY_SQL =
+  "CASE `jenis_transaksi` WHEN 'masuk' THEN `jumlah` WHEN 'retur' THEN `jumlah` WHEN 'keluar' THEN -`jumlah` ELSE 0 END";
 
 /** Pilih hanya kolom yang ada di tabel + konversi tipe untuk SQL. */
 export function toRow(type, doc) {
@@ -143,53 +149,153 @@ export async function listMutations(type, { year } = {}) {
   return fromRows(rows, SPEC);
 }
 
+/**
+ * Susun klausa WHERE dari filter daftar — semantik identik dengan filterRows():
+ * start/end inklusif, jenis exact (binary/case-sensitive seperti `===`),
+ * transaksi exact, supplier "mengandung" (case-insensitive), search "mengandung"
+ * pada nama / satuan(other) / supplier / PIC / kode (case-insensitive).
+ */
+function buildWhere(type, { year, start, end, jenis, transaksi, supplier, search } = {}) {
+  const nameCol = q(NAME_FIELD[type]);
+  const where = [];
+  const params = [];
+  if (year) { where.push("`year`=?"); params.push(Number(year)); }
+  if (start) { where.push("`date`>=?"); params.push(String(start)); }
+  if (end) { where.push("`date`<=?"); params.push(String(end)); }
+  if (jenis) { where.push(`${nameCol} COLLATE utf8mb4_bin = ?`); params.push(String(jenis)); }
+  if (transaksi) { where.push("`jenis_transaksi`=?"); params.push(String(transaksi)); }
+  if (supplier) { where.push("`supplier` LIKE ?"); params.push(likeContains(supplier)); }
+  if (search) {
+    const s = likeContains(search);
+    const cols = [nameCol, ...(type === "other" ? ["`satuan`"] : []), "`supplier`", "`pic_name`", "`kode`"];
+    where.push(`(${cols.map((c) => `${c} LIKE ?`).join(" OR ")})`);
+    for (let i = 0; i < cols.length; i++) params.push(s);
+  }
+  return { sql: where.length ? ` WHERE ${where.join(" AND ")}` : "", params };
+}
+
+/**
+ * Daftar mutasi dengan filter di SQL (+ pagination opsional).
+ * Mengembalikan { items, total }. Tanpa `pg` -> semua baris yang cocok.
+ */
+export async function queryMutations(type, filters = {}, pg = null) {
+  const table = tableFor(type);
+  const { sql: where, params } = buildWhere(type, filters);
+  const order = " ORDER BY `date` DESC, `created_at` DESC";
+  if (!pg) {
+    const rows = await query(`SELECT * FROM ${q(table)}${where}${order}`, params);
+    return { items: fromRows(rows, SPEC), total: rows.length };
+  }
+  const [rows, cnt] = await Promise.all([
+    query(`SELECT * FROM ${q(table)}${where}${order} LIMIT ? OFFSET ?`, [...params, Number(pg.pageSize), Number(pg.offset)]),
+    queryOne(`SELECT COUNT(*) AS n FROM ${q(table)}${where}`, params),
+  ]);
+  return { items: fromRows(rows, SPEC), total: Number(cnt?.n || 0) };
+}
+
+/**
+ * Opsi referensi untuk form (dropdown "Referensi Mutasi Keluar" / "Ambil Kode dari Mutasi Masuk").
+ * Hanya kolom yang ditampilkan di label + identitas barang untuk auto-isi.
+ */
+export async function refOptions(type, { year, transaksi, limit = 1000 } = {}) {
+  return await cached(TAG_STOK, `refs:${type}:${year ?? ""}:${transaksi ?? ""}:${limit}`, () => refOptionsUncached(type, { year, transaksi, limit }));
+}
+
+async function refOptionsUncached(type, { year, transaksi, limit }) {
+  const table = tableFor(type);
+  const extra = {
+    paper: "`jenis_kertas`,`gramatur`,`panjang`,`lebar`",
+    ink: "`jenis_tinta`",
+    other: "`nama_barang`,`satuan`",
+  }[type];
+  const where = [];
+  const params = [];
+  if (year) { where.push("`year`=?"); params.push(Number(year)); }
+  if (transaksi) { where.push("`jenis_transaksi`=?"); params.push(String(transaksi)); }
+  const sql = `SELECT \`id\`,\`kode\`,\`date\`,\`jenis_transaksi\`,\`jumlah\`,${extra} FROM ${q(table)}` +
+    `${where.length ? ` WHERE ${where.join(" AND ")}` : ""} ORDER BY \`date\` DESC, \`created_at\` DESC LIMIT ?`;
+  params.push(Number(limit));
+  return fromRows(await query(sql, params));
+}
+
 export async function getMutation(type, id) {
   const table = tableFor(type);
   return fromRow(await queryOne(`SELECT * FROM ${q(table)} WHERE \`id\`=?`, [id]), SPEC);
 }
 
+// Setiap tulis membatalkan cache agregat (dashboard, laporan, jenis, refs).
 export async function insertMutation(type, doc) {
   await insertRow(tableFor(type), toRow(type, doc));
+  invalidate(TAG_STOK);
   return doc;
 }
 
 export async function updateMutation(type, id, doc) {
-  return await updateRow(tableFor(type), toRow(type, doc), { id });
+  const res = await updateRow(tableFor(type), toRow(type, doc), { id });
+  invalidate(TAG_STOK);
+  return res;
 }
 
 export async function deleteMutation(type, id) {
-  return await deleteRows(tableFor(type), { id });
+  const res = await deleteRows(tableFor(type), { id });
+  invalidate(TAG_STOK);
+  return res;
 }
 
 /** Hapus semua mutasi (tutup tahun). Mengembalikan jumlah baris terhapus. */
 export async function deleteAllMutations(type) {
   const res = await deleteRows(tableFor(type), {});
+  invalidate(TAG_STOK);
   return res.affectedRows;
 }
 
-/** Daftar nama unik (jenis kertas / jenis tinta / nama barang). */
+/** Daftar nama unik (jenis kertas / jenis tinta / nama barang) — di-cache. */
 export async function distinctNames(type) {
+  return await cached(TAG_STOK, `jenis:${type}`, () => distinctNamesUncached(type));
+}
+
+async function distinctNamesUncached(type) {
   const table = tableFor(type);
   const col = NAME_FIELD[type];
   const rows = await query(`SELECT DISTINCT ${q(col)} AS v FROM ${q(table)} WHERE ${q(col)} <> '' ORDER BY ${q(col)} ASC`);
   return rows.map((r) => r.v).filter(Boolean);
 }
 
-/** Validasi stok untuk transaksi Keluar. */
+/**
+ * Stok saat ini untuk satu kunci barang, dihitung di SQL (SUM kuantitas bertanda).
+ * Cermin persis currentPaperStockForKey / currentInkStockForKey / currentOtherStockForKey:
+ * - nama dibandingkan exact & case-sensitive (COLLATE utf8mb4_bin  ==  `===` di JS),
+ * - gramatur/panjang/lebar dibandingkan sebagai angka,
+ * - `excludeId` dikecualikan (saat edit),
+ * - hasil dibulatkan 3 desimal.
+ */
+export async function currentStockSql(type, doc, excludeId = null) {
+  const table = tableFor(type);
+  const where = ["`year`=?"];
+  const params = [Number(doc.year)];
+  if (type === "paper") {
+    where.push("`jenis_kertas` COLLATE utf8mb4_bin = ?", "`gramatur`=?", "`panjang`=?", "`lebar`=?");
+    params.push(String(doc.jenis_kertas), num(doc.gramatur), num(doc.panjang), num(doc.lebar));
+  } else if (type === "ink") {
+    where.push("`jenis_tinta` COLLATE utf8mb4_bin = ?");
+    params.push(String(doc.jenis_tinta));
+  } else {
+    where.push("`nama_barang` COLLATE utf8mb4_bin = ?");
+    params.push(String(doc.nama_barang));
+  }
+  if (excludeId) { where.push("`id`<>?"); params.push(excludeId); }
+  const row = await queryOne(
+    `SELECT COALESCE(SUM(${SIGNED_QTY_SQL}),0) AS stock FROM ${q(table)} WHERE ${where.join(" AND ")}`,
+    params,
+  );
+  return round(Number(row?.stock || 0), 3);
+}
+
+/** Validasi stok untuk transaksi Keluar (1 query agregat, bukan memuat semua mutasi). */
 export async function assertStockAvailable(type, doc, excludeId = null) {
   if (doc.jenis_transaksi !== "keluar") return;
-  const muts = await listMutations(type, { year: doc.year });
-  let avail, unit;
-  if (type === "paper") {
-    avail = currentPaperStockForKey(muts, doc.jenis_kertas, doc.gramatur, doc.panjang, doc.lebar, excludeId);
-    unit = "Rim";
-  } else if (type === "ink") {
-    avail = currentInkStockForKey(muts, doc.jenis_tinta, excludeId);
-    unit = "Kg";
-  } else {
-    avail = currentOtherStockForKey(muts, doc.nama_barang, excludeId);
-    unit = doc.satuan || "unit";
-  }
+  const avail = await currentStockSql(type, doc, excludeId);
+  const unit = type === "paper" ? "Rim" : type === "ink" ? "Kg" : (doc.satuan || "unit");
   if (doc.jumlah > avail) {
     throw new HttpError(400, `Stok tidak cukup, sisa stok saat ini: ${avail} ${unit}`);
   }

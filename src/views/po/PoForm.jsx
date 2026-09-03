@@ -2,6 +2,8 @@ import { useEffect, useState, useCallback } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, AlertTriangle, CheckCircle2, Check } from "lucide-react";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
+import { invalidatePo } from "@/lib/queryInvalidation";
 import * as api from "@/lib/poApi";
 import { useLang } from "@/context/LangContext";
 import { MACHINES } from "@/lib/poStages";
@@ -19,6 +21,7 @@ export default function PoForm() {
   const editing = !!id;
   const { t, stageName } = useLang();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const [form, setForm] = useState({
     po_number: "", client_name: "", item_type: "", material: "", paper_size: "",
@@ -69,10 +72,12 @@ export default function PoForm() {
     try {
       if (editing) {
         await api.updatePo(id, payload);
+        invalidatePo(queryClient);
         toast.success("PO diperbarui");
         navigate(`/po/pos/${id}`);
       } else {
         const data = await api.createPo(payload);
+        invalidatePo(queryClient);
         toast.success("PO dibuat");
         navigate(`/po/pos/${data.id}`);
       }

@@ -3,7 +3,7 @@ import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, FileStack, Droplets, Package, ClipboardList, BarChart3,
   Users, CalendarX, Menu, X, Lock, Calculator,
-  ListTodo, CalendarDays, Globe, Search, Boxes, History, Receipt, PieChart,
+  ListTodo, CalendarDays, Globe, Boxes, History, Receipt, PieChart,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
@@ -12,7 +12,6 @@ import ThemeToggle from "@/components/ThemeToggle";
 import Logo from "@/components/Logo";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import NavUser from "@/components/NavUser";
-import CommandPalette, { CommandPaletteTrigger, useCommandPalette } from "@/components/CommandPalette";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -30,7 +29,6 @@ export default function AppShell() {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [warn, setWarn] = useState(false);
-  const { open: cmdOpen, setOpen: setCmdOpen } = useCommandPalette();
   const warnRef = useRef(null);
   const outRef = useRef(null);
 
@@ -212,11 +210,6 @@ export default function AppShell() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <CommandPaletteTrigger onOpen={() => setCmdOpen(true)} />
-            <Button variant="outline" size="icon" className="md:hidden" data-testid="command-palette-trigger-mobile"
-              aria-label="Cari menu" onClick={() => setCmdOpen(true)}>
-              <Search className="h-4 w-4" />
-            </Button>
             <Select value={lang} onValueChange={setLang}>
               <SelectTrigger className="w-[92px] h-9" data-testid="lang-toggle">
                 <div className="flex items-center gap-1.5"><Globe className="h-3.5 w-3.5" />{lang === "id" ? "ID" : "EN"}</div>
@@ -244,8 +237,6 @@ export default function AppShell() {
           </Suspense>
         </main>
       </div>
-
-      <CommandPalette open={cmdOpen} onOpenChange={setCmdOpen} />
 
       <AlertDialog open={warn} onOpenChange={setWarn}>
         <AlertDialogContent data-testid="idle-warning-dialog">

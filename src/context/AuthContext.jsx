@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState, useCallback, useMemo } from "react";
 import api, { setSectionPassword } from "@/lib/api";
+import { useQueryClient } from "@tanstack/react-query";
 import { effectivePermissions } from "@/lib/permissions";
 
 const AuthContext = createContext(null);
@@ -29,6 +30,7 @@ export function homePathFor(perms) {
 }
 
 export function AuthProvider({ children }) {
+  const queryClient = useQueryClient();
   const [user, setUser] = useState(undefined); // undefined=loading, null=guest
   const [sectionUnlocked, setSectionUnlocked] = useState(false);
 
@@ -47,6 +49,7 @@ export function AuthProvider({ children }) {
   // Login hanya username + password; role & hak akses datang dari server.
   const login = async (username, password) => {
     const { data } = await api.post("/auth/login", { username, password });
+    queryClient.clear(); // sesi baru: jangan pakai cache milik sesi/user sebelumnya
     if (data.token) {
       localStorage.setItem("stokku_token", data.token);
       localStorage.setItem("sca_token", data.token);
@@ -60,6 +63,7 @@ export function AuthProvider({ children }) {
     try { await api.post("/auth/logout", { type }); } catch {}
     localStorage.removeItem("sca_token");
     localStorage.removeItem("stokku_token");
+    queryClient.clear();
     setUser(null);
     setSectionUnlocked(false);
     setSectionPassword("");

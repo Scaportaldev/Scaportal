@@ -7,8 +7,9 @@
  */
 import {
   query, queryOne, insertRow, updateRow, deleteRows, withTx,
-  fromRow, fromRows, toDateTime, toDate, nowIso,
+  fromRow, fromRows, toDateTime, toDate, nowIso, likeContains,
 } from "@/server/db";
+import { cached, invalidate, TAG_PO } from "@/server/cache";
 
 const PO_SPEC = { jsonArrays: ["enabled_stages"], json: ["stage_data"] };
 const PO_COLS = [
@@ -55,9 +56,52 @@ async function attachLogs(pos) {
 }
 
 // ---------------- PO ----------------
-export async function listPos({ limit = 2000, withLogs = false } = {}) {
-  const pos = fromRows(await query("SELECT * FROM `pos` ORDER BY `created_at` DESC LIMIT ?", [Number(limit)]), PO_SPEC);
+/**
+ * Daftar PO. Filter `search` (no PO / klien / jenis item, case-insensitive) dan
+ * `month` ('YYYY-MM' dari po_date, fallback est_start) dijalankan di SQL —
+ * semantik sama dengan filterPos() lama, hanya dipindah dari JS ke database.
+ */
+export async function listPos({ limit = 2000, withLogs = false, search = null, month = null } = {}) {
+  const where = [];
+  const params = [];
+  if (search) {
+    const s = likeContains(search);
+    where.push("(`po_number` LIKE ? OR `client_name` LIKE ? OR `item_type` LIKE ?)");
+    params.push(s, s, s);
+  }
+  if (month) {
+    where.push("DATE_FORMAT(COALESCE(`po_date`, `est_start`), '%Y-%m') = ?");
+    params.push(String(month));
+  }
+  const sql = `SELECT * FROM \`pos\`${where.length ? ` WHERE ${where.join(" AND ")}` : ""} ORDER BY \`created_at\` DESC LIMIT ?`;
+  params.push(Number(limit));
+  const pos = fromRows(await query(sql, params), PO_SPEC);
   return withLogs ? await attachLogs(pos) : pos.map((p) => ({ ...p, logs: [] }));
+}
+
+/** Daftar bulan ('YYYY-MM', terbaru dulu) yang punya PO — untuk dropdown filter. */
+export async function listPoMonths() {
+  return await cached(TAG_PO, "months", listPoMonthsUncached);
+}
+
+async function listPoMonthsUncached() {
+  const rows = await query(
+    "SELECT DISTINCT DATE_FORMAT(COALESCE(`po_date`, `est_start`), '%Y-%m') AS ym FROM `pos` " +
+    "WHERE COALESCE(`po_date`, `est_start`) IS NOT NULL ORDER BY ym DESC",
+  );
+  return rows.map((r) => r.ym).filter((x) => typeof x === "string" && x.length === 7);
+}
+
+/**
+ * PO yang rentang estimasinya beririsan dengan [estStart, estEnd]
+ * (semantik rangesOverlap: s1 <= e2 && s2 <= e1; PO tanpa est_start/est_end diabaikan).
+ */
+export async function listPosOverlapping(estStart, estEnd, excludeId = null) {
+  const params = [toDate(estEnd), toDate(estStart)];
+  let sql = "SELECT * FROM `pos` WHERE `est_start` IS NOT NULL AND `est_end` IS NOT NULL AND `est_start` <= ? AND `est_end` >= ?";
+  if (excludeId) { sql += " AND `id` <> ?"; params.push(excludeId); }
+  sql += " ORDER BY `created_at` DESC";
+  return fromRows(await query(sql, params), PO_SPEC).map((p) => ({ ...p, logs: [] }));
 }
 
 export async function getPo(id) {
@@ -79,6 +123,7 @@ export async function insertPo(doc) {
     await insertRow("pos", poRow(doc), conn);
     for (const l of doc.logs || []) await insertLog(doc.id, l, conn);
   });
+  invalidate(TAG_PO);
   return doc;
 }
 
@@ -89,6 +134,7 @@ export async function updatePo(id, set, newLogs = []) {
     if (Object.keys(row).length) await updateRow("pos", row, { id }, conn);
     for (const l of newLogs) await insertLog(id, l, conn);
   });
+  invalidate(TAG_PO);
 }
 
 async function insertLog(poId, log, conn) {
@@ -101,7 +147,9 @@ async function insertLog(poId, log, conn) {
 }
 
 export async function deletePo(id) {
-  return await deleteRows("pos", { id }); // cascade: po_logs, po_schedules, po_files
+  const res = await deleteRows("pos", { id }); // cascade: po_logs, po_schedules, po_files
+  invalidate(TAG_PO);
+  return res;
 }
 
 // ---------------- Jadwal ----------------
@@ -111,11 +159,14 @@ export async function listSchedules(limit = 3000) {
 
 export async function insertSchedule(doc) {
   await insertRow("po_schedules", { ...doc, date: toDate(doc.date), created_at: toDateTime(doc.created_at) });
+  invalidate(TAG_PO);
   return doc;
 }
 
 export async function deleteSchedule(id) {
-  return await deleteRows("po_schedules", { id });
+  const res = await deleteRows("po_schedules", { id });
+  invalidate(TAG_PO);
+  return res;
 }
 
 // ---------------- File / foto ----------------
@@ -135,9 +186,12 @@ export async function insertFile(doc) {
     created_at: toDateTime(doc.created_at),
     deleted_at: toDateTime(doc.deleted_at),
   });
+  invalidate(TAG_PO);
   return doc;
 }
 
 export async function markFileDeleted(id) {
-  return await updateRow("po_files", { is_deleted: 1, deleted_at: toDateTime(nowIso()) }, { id });
+  const res = await updateRow("po_files", { is_deleted: 1, deleted_at: toDateTime(nowIso()) }, { id });
+  invalidate(TAG_PO);
+  return res;
 }

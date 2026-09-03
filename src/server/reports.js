@@ -3,8 +3,12 @@ import { listMutations } from "@/server/mutations";
 import {
   computePaperStocks, computeInkStocks, computeOtherStocks, signedQty, paperKey, round,
 } from "@/server/stock";
+import {
+  aggregateStocks, aggregateStocksBySupplier, countMutationsOn, monthlyTrend, recentMutations,
+} from "@/server/stockSql";
 import { ID_MONTHS } from "@/server/format";
 import { hasPermission } from "@/lib/permissions";
+import { cached, TAG_STOK } from "@/server/cache";
 
 /** Semua mutasi satu tipe untuk satu tahun (type = paper | ink | other). */
 export async function allYear(type, year) {
@@ -26,8 +30,70 @@ function countRange(muts, start, end, transaksi) {
   return muts.filter((m) => inRange(m, start, end) && m.jenis_transaksi === transaksi).length;
 }
 
+/** 6 bulan terakhir sebagai [yy, mm] (bulan ini paling akhir). */
+function lastSixMonths() {
+  const now = new Date();
+  const months = [];
+  for (let k = 5; k >= 0; k--) {
+    let mm = now.getMonth() + 1 - k;
+    let yy = now.getFullYear();
+    while (mm <= 0) { mm += 12; yy -= 1; }
+    months.push([yy, mm]);
+  }
+  return months;
+}
+
 // ---------------- DASHBOARD ----------------
+/**
+ * Dashboard — semua angka dihitung lewat agregasi SQL (6 query paralel, payload kecil),
+ * bukan memuat seluruh mutasi setahun. Bentuk & nilai keluaran identik dengan versi JS.
+ */
 export async function computeDashboard(current) {
+  // Hasil LENGKAP (termasuk nominal) di-cache satu untuk semua user; field nominal
+  // disaring per hak akses di bawah -> tidak ada kebocoran & tidak ada cache per user.
+  const full = await cached(TAG_STOK, `dashboard:${currentYear()}:${new Date().toISOString().slice(0, 10)}`, computeDashboardFull);
+  const { nominal_paper, nominal_ink, nominal_other, nominal_total, ...base } = full;
+  if (hasPermission(current, "stok_detail")) {
+    return { ...base, nominal_paper, nominal_ink, nominal_other, nominal_total };
+  }
+  return base;
+}
+
+async function computeDashboardFull() {
+  const year = currentYear();
+  const today = new Date().toISOString().slice(0, 10);
+  const [p, i, o, mutationsToday, trend, recent] = await Promise.all([
+    aggregateStocks("paper", year),
+    aggregateStocks("ink", year),
+    aggregateStocks("other", year),
+    countMutationsOn(year, today),
+    monthlyTrend(year, lastSixMonths()),
+    recentMutations(year, 10),
+  ]);
+
+  const totalPaper = round(sum(Object.values(p).map((v) => Math.max(v.stock, 0))), 2);
+  const totalInk = round(sum(Object.values(i).map((v) => Math.max(v.stock, 0))), 2);
+  const nominalPaper = round(sum(Object.values(p).map((v) => v.nominal)), 2);
+  const nominalInk = round(sum(Object.values(i).map((v) => v.nominal)), 2);
+  const nominalOther = round(sum(Object.values(o).map((v) => v.nominal)), 2);
+
+  const result = {
+    total_paper_stock: totalPaper,
+    total_ink_stock: totalInk,
+    mutations_today: mutationsToday,
+    trend,
+    recent,
+    year,
+    nominal_paper: nominalPaper,
+    nominal_ink: nominalInk,
+    nominal_other: nominalOther,
+    nominal_total: round(nominalPaper + nominalInk + nominalOther, 2),
+  };
+  return result;
+}
+
+/** Versi JS lama (referensi/verifikasi kesetaraan) — tidak dipakai endpoint. */
+export async function computeDashboardLegacy(current) {
   const year = currentYear();
   const [paper, ink, other] = await Promise.all([
     allYear("paper", year), allYear("ink", year), allYear("other", year),
@@ -46,15 +112,7 @@ export async function computeDashboard(current) {
   const today = new Date().toISOString().slice(0, 10);
   const mutationsToday = [...paper, ...ink, ...other].filter((m) => m.date === today).length;
 
-  const now = new Date();
-  const months = [];
-  for (let k = 5; k >= 0; k--) {
-    let mm = now.getMonth() + 1 - k;
-    let yy = now.getFullYear();
-    while (mm <= 0) { mm += 12; yy -= 1; }
-    months.push([yy, mm]);
-  }
-  const trend = months.map(([yy, mm]) => {
+  const trend = lastSixMonths().map(([yy, mm]) => {
     const prefix = `${yy}-${pad(mm)}`;
     const f = (arr, t) => sum(arr.filter((m) => m.date.startsWith(prefix) && m.jenis_transaksi === t).map((m) => m.jumlah));
     return {
@@ -91,7 +149,47 @@ export async function computeDashboard(current) {
 }
 
 // ---------------- STOK RINGKAS ----------------
+const supList = (map, k) =>
+  Object.entries(map[k] || {})
+    .map(([supplier, qty]) => ({ supplier, stock: round(qty, 3) }))
+    .filter((x) => x.stock !== 0)
+    .sort((a, b) => b.stock - a.stock);
+
+function assembleStock(p, i, o, psup, isup, osup, year) {
+  const paperList = Object.entries(p).map(([k, v]) => ({
+    jenis_kertas: v.jenis_kertas, gramatur: v.gramatur, panjang: v.panjang, lebar: v.lebar,
+    stock: v.stock, suppliers: supList(psup, k),
+  }));
+  const inkList = Object.entries(i).map(([k, v]) => ({
+    jenis_tinta: v.jenis_tinta, stock: v.stock, suppliers: supList(isup, k),
+  }));
+  const otherList = Object.entries(o).map(([k, v]) => ({
+    nama_barang: v.nama_barang, satuan: v.satuan, stock: v.stock, suppliers: supList(osup, k),
+  }));
+
+  paperList.sort((a, b) => a.jenis_kertas.localeCompare(b.jenis_kertas) || a.gramatur - b.gramatur);
+  inkList.sort((a, b) => a.jenis_tinta.localeCompare(b.jenis_tinta));
+  otherList.sort((a, b) => a.nama_barang.localeCompare(b.nama_barang));
+
+  return { paper: paperList, ink: inkList, other: otherList, year };
+}
+
+/** Laporan stok ringkas — agregasi SQL (6 query paralel), di-cache (invalidasi saat ada tulis). */
 export async function computeStock() {
+  return await cached(TAG_STOK, `stock:${currentYear()}`, computeStockUncached);
+}
+
+async function computeStockUncached() {
+  const year = currentYear();
+  const [p, i, o, psup, isup, osup] = await Promise.all([
+    aggregateStocks("paper", year), aggregateStocks("ink", year), aggregateStocks("other", year),
+    aggregateStocksBySupplier("paper", year), aggregateStocksBySupplier("ink", year), aggregateStocksBySupplier("other", year),
+  ]);
+  return assembleStock(p, i, o, psup, isup, osup, year);
+}
+
+/** Versi JS lama (referensi/verifikasi kesetaraan) — tidak dipakai endpoint. */
+export async function computeStockLegacy() {
   const year = currentYear();
   const [paper, ink, other] = await Promise.all([
     allYear("paper", year), allYear("ink", year), allYear("other", year),
@@ -110,40 +208,22 @@ export async function computeStock() {
     }
     return acc;
   };
-  const supList = (map, k) =>
-    Object.entries(map[k] || {})
-      .map(([supplier, qty]) => ({ supplier, stock: round(qty, 3) }))
-      .filter((x) => x.stock !== 0)
-      .sort((a, b) => b.stock - a.stock);
-
   const psup = bySupplier(paper, paperKey);
-  const paperList = Object.entries(p).map(([k, v]) => ({
-    jenis_kertas: v.jenis_kertas, gramatur: v.gramatur, panjang: v.panjang, lebar: v.lebar,
-    stock: v.stock, suppliers: supList(psup, k),
-  }));
-
   const isup = bySupplier(ink, (m) => m.jenis_tinta ?? "");
-  const inkList = Object.entries(i).map(([k, v]) => ({
-    jenis_tinta: v.jenis_tinta, stock: v.stock, suppliers: supList(isup, k),
-  }));
-
   const osup = bySupplier(other, (m) => m.nama_barang ?? "");
-  const otherList = Object.entries(o).map(([k, v]) => ({
-    nama_barang: v.nama_barang, satuan: v.satuan, stock: v.stock, suppliers: supList(osup, k),
-  }));
-
-  paperList.sort((a, b) => a.jenis_kertas.localeCompare(b.jenis_kertas) || a.gramatur - b.gramatur);
-  inkList.sort((a, b) => a.jenis_tinta.localeCompare(b.jenis_tinta));
-  otherList.sort((a, b) => a.nama_barang.localeCompare(b.nama_barang));
-
-  return { paper: paperList, ink: inkList, other: otherList, year };
+  return assembleStock(p, i, o, psup, isup, osup, year);
 }
 
 // ---------------- LAPORAN DETAIL ----------------
+/** Laporan detail (perhitungan JS per periode) — di-cache per (start,end). */
 export async function computeDetail(startIn, endIn) {
   const year = currentYear();
   const start = startIn || `${year}-01-01`;
   const end = endIn || new Date().toISOString().slice(0, 10);
+  return await cached(TAG_STOK, `detail:${year}:${start}:${end}`, () => computeDetailUncached(year, start, end));
+}
+
+async function computeDetailUncached(year, start, end) {
 
   const [paper, ink, other] = await Promise.all([
     allYear("paper", year), allYear("ink", year), allYear("other", year),

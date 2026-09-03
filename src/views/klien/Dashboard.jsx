@@ -33,7 +33,6 @@ export default function KlienDashboard() {
   const { data, isLoading, error } = useQuery({
     queryKey: ["klien", "dashboard"],
     queryFn: kapi.klienDashboard,
-    refetchOnMount: "always",
   });
   useEffect(() => {
     if (error) toast.error(apiError(error, "Gagal memuat data stok klien"));

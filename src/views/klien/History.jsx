@@ -52,7 +52,6 @@ export default function KlienHistory() {
   const { data: kliens = [] } = useQuery({
     queryKey: ["klien", "clients"],
     queryFn: kapi.listKliens,
-    refetchOnMount: "always",
   });
 
   const { data: pos = [] } = useQuery({
@@ -75,7 +74,6 @@ export default function KlienHistory() {
     queryKey: ["klien", "mutations", params],
     queryFn: () => kapi.listKlienMutations(params),
     placeholderData: keepPreviousData,
-    refetchOnMount: "always",
   });
   useEffect(() => {
     if (error) toast.error(apiError(error, "Gagal memuat riwayat"));
