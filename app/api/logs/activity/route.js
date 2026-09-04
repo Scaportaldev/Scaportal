@@ -15,8 +15,8 @@ export const GET = handle(async (req) => {
 });
 
 /**
- * DELETE /api/logs/activity — bersihkan log aktivitas (khusus Superadmin).
- * Sesi yang masih aktif dipertahankan; aksi tercatat di log audit.
+ * DELETE /api/logs/activity — bersihkan SEMUA log aktivitas (khusus Superadmin).
+ * Aksi tercatat di log audit.
  */
 export const DELETE = handle(async (req) => {
   const current = await requireSuperadmin(req);

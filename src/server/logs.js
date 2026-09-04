@@ -77,9 +77,9 @@ export async function listAudit(opts = 1000) {
 }
 
 // ---------------- Pembersihan log (khusus Superadmin) ----------------
-/** Hapus log aktivitas. Sesi yang masih aktif (belum logout) dipertahankan. */
+/** Hapus SEMUA log aktivitas (termasuk sesi berstatus Aktif yang tidak pernah logout). */
 export async function clearActivity() {
-  const res = await query("DELETE FROM `activity_logs` WHERE `logout_time` IS NOT NULL");
+  const res = await query("DELETE FROM `activity_logs`");
   return Number(res?.affectedRows || 0);
 }
 

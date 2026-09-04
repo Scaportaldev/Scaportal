@@ -294,7 +294,7 @@ function Inner() {
         </TabsList>
 
         {/* ===================== Log Aktivitas ===================== */}
-        <TabsContent value="activity" className={cn(TAB_CONTENT, "flex flex-col gap-3")}>
+        <TabsContent value="activity" className={cn(TAB_CONTENT, "flex-col gap-3 data-[state=active]:flex")}>
           {isSuper && <ClearLogButton target="activity" testid="clear-activity-log-button" />}
           <div className={TABLE_WRAP} data-testid="activity-log-card">
             <MutasiTable
@@ -321,7 +321,7 @@ function Inner() {
         </TabsContent>
 
         {/* ===================== Audit Mutasi ===================== */}
-        <TabsContent value="audit" className={cn(TAB_CONTENT, "flex flex-col gap-3")}>
+        <TabsContent value="audit" className={cn(TAB_CONTENT, "flex-col gap-3 data-[state=active]:flex")}>
           {isSuper && <ClearLogButton target="audit" testid="clear-audit-log-button" />}
           <div className={TABLE_WRAP} data-testid="audit-log-card">
             <MutasiTable
@@ -442,7 +442,7 @@ function Inner() {
             </AlertDialogTitle>
             <AlertDialogDescription>
               {clearTarget === "activity"
-                ? "Semua riwayat login/logout akan dihapus permanen. Sesi yang masih aktif tetap dipertahankan. Tindakan ini tidak bisa dibatalkan."
+                ? "Semua riwayat login/logout akan dihapus permanen, termasuk sesi berstatus Aktif. Tindakan ini tidak bisa dibatalkan."
                 : "Semua riwayat audit mutasi akan dihapus permanen. Satu catatan pembersihan akan tercatat sebagai jejak. Tindakan ini tidak bisa dibatalkan."}
             </AlertDialogDescription>
           </AlertDialogHeader>
