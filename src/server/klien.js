@@ -255,5 +255,7 @@ export async function listMutations({ klien_id, po_id, item_id, jenis, start, en
     satuan: m.satuan ?? "",
     no_po: m.no_po ?? "-",
     nama_klien: m.nama_klien ?? "-",
+    // Nama User penginput: username login; data lama (sebelum kolom ada) pakai pic_name.
+    user_name: m.user_name || m.pic_name || "-",
   }));
 }

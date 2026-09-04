@@ -85,6 +85,7 @@ export async function buildKlienHistoryPdf({ mutations, periodLabel }) {
   section(ctx, "Daftar Mutasi");
   const rows = (mutations || []).map((m) => [
     fmtDateTime(m.tanggal),
+    m.user_name || m.pic_name || "-",
     m.nama_klien || "-",
     m.no_po || "-",
     m.jenis_item || "-",
@@ -95,9 +96,9 @@ export async function buildKlienHistoryPdf({ mutations, periodLabel }) {
 
   drawTable(
     ctx,
-    ["Tanggal & Waktu", "Nama Klien", "No PO", "Jenis Item", "Mutasi", "Jumlah", "Keterangan"],
+    ["Tanggal & Waktu", "Nama User", "Nama Klien", "No PO", "Jenis Item", "Mutasi", "Jumlah", "Keterangan"],
     rows,
-    { weights: [1.6, 2, 1, 2, 1, 1.4, 2.6], rightCols: [5], fontSize: 8 },
+    { weights: [1.6, 1.3, 1.8, 1, 1.8, 1, 1.4, 2.3], rightCols: [6], fontSize: 8 },
   );
 
   return finish(ctx);

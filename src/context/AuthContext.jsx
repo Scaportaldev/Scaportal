@@ -5,6 +5,7 @@ import { effectivePermissions } from "@/lib/permissions";
 import { clearAllHppDrafts } from "@/lib/hppDraft";
 import {
   setToken, hasTabSession, markTabSession, touchActivity, isIdleExpired, clearClientSession,
+  wasTabClosed, installTabLifecycle,
 } from "@/lib/session";
 
 const AuthContext = createContext(null);
@@ -53,7 +54,8 @@ export function AuthProvider({ children }) {
     //    walau cookie server masih berlaku (cookie dibersihkan lewat /auth/logout).
     //  - Tidak ada aktivitas > 30 menit (termasuk saat tab di-background / reload) → logout otomatis.
     if (typeof window !== "undefined") {
-      if (!hasTabSession()) {
+      // ABSOLUT: tab baru, atau tab yang sudah ditutup lalu dipulihkan browser → login ulang.
+      if (!hasTabSession() || wasTabClosed()) {
         await dropSession("auto");
         setUser(null);
         return;
@@ -76,6 +78,13 @@ export function AuthProvider({ children }) {
   }, [dropSession]);
 
   useEffect(() => { loadMe(); }, [loadMe]);
+
+  // Selama user login: pantau siklus hidup tab (tanda tutup + detak hidup) untuk
+  // mendeteksi tab yang dipulihkan browser setelah ditutup.
+  useEffect(() => {
+    if (!user) return undefined;
+    return installTabLifecycle();
+  }, [user]);
 
   // Server menjawab 401 di tengah pemakaian (token kedaluwarsa / dicabut) → langsung ke login.
   useEffect(() => {
