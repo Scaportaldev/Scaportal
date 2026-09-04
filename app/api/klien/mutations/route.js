@@ -52,6 +52,8 @@ export const POST = handle(async (req) => {
     tanggal: body?.tanggal || nowIso(),
     keterangan: String(body?.keterangan ?? ""),
     pic_name: current.name || current.username,
+    user_id: current.id,
+    user_name: current.username,
     created_at: nowIso(),
   };
   await insertMutationTx(doc, newQty);

@@ -115,6 +115,10 @@ export default function KlienHistory() {
   // Konfigurasi kolom MutasiTable (desktop = tabel, mobile = kartu).
   const columns = [
     { id: "tanggal", label: "Tanggal & Waktu", headClassName: "whitespace-nowrap", cellClassName: "whitespace-nowrap text-muted-foreground", cardClassName: "col-span-2", render: (m) => fmtDateTime(m.tanggal) },
+    {
+      id: "user", label: "Nama User", headClassName: "whitespace-nowrap", cellClassName: "whitespace-nowrap",
+      render: (m) => <span data-testid={`history-user-${m.id}`}>{m.user_name || "-"}</span>,
+    },
     { id: "klien", label: "Nama Klien", role: "name", cellClassName: "whitespace-nowrap font-medium", render: (m) => m.nama_klien },
     { id: "po", label: "No PO", render: (m) => m.no_po },
     { id: "item", label: "Jenis Item", cellClassName: "whitespace-nowrap", render: (m) => m.jenis_item },

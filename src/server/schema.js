@@ -243,6 +243,11 @@ export const DDL = [
     CONSTRAINT \`fk_klienmut_item\` FOREIGN KEY (\`item_id\`) REFERENCES \`klien_items\`(\`id\`) ON DELETE CASCADE
   ) ${T}`,
 
+  // Migrasi idempotent: catat USER (login) yang menginput mutasi stok klien.
+  // \`pic_name\` (nama tampilan) sudah ada sejak awal; \`user_name\` = username login, \`user_id\` = id user.
+  `ALTER TABLE \`klien_mutations\` ADD COLUMN IF NOT EXISTS \`user_id\` CHAR(36) NULL AFTER \`pic_name\``,
+  `ALTER TABLE \`klien_mutations\` ADD COLUMN IF NOT EXISTS \`user_name\` VARCHAR(191) NULL AFTER \`user_id\``,
+
   // ---------------- Jatuh Tempo Klien ----------------
   `CREATE TABLE IF NOT EXISTS \`tempo_invoices\` (
     \`id\` CHAR(36) NOT NULL PRIMARY KEY,
