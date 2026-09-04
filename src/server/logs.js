@@ -76,6 +76,19 @@ export async function listAudit(opts = 1000) {
   return { items: fromRows(rows, { bools: ["has_detail"] }), total: Number(cnt?.n || 0) };
 }
 
+// ---------------- Pembersihan log (khusus Superadmin) ----------------
+/** Hapus log aktivitas. Sesi yang masih aktif (belum logout) dipertahankan. */
+export async function clearActivity() {
+  const res = await query("DELETE FROM `activity_logs` WHERE `logout_time` IS NOT NULL");
+  return Number(res?.affectedRows || 0);
+}
+
+/** Hapus semua log audit mutasi. */
+export async function clearAudit() {
+  const res = await query("DELETE FROM `audit_logs`");
+  return Number(res?.affectedRows || 0);
+}
+
 /** Satu baris audit lengkap (before/after) — dipakai saat user membuka detail. */
 export async function getAudit(id) {
   const row = fromRow(await queryOne("SELECT * FROM `audit_logs` WHERE `id`=?", [id]), { json: ["before_data", "after_data"] });

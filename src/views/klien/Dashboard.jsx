@@ -4,7 +4,8 @@ import { Plus, Search, Building2, FileDown, FileText, Package, Archive } from "l
 import { toast } from "sonner";
 
 import * as kapi from "@/lib/klienApi";
-import { apiError } from "@/context/AuthContext";
+import { apiError, useAuth } from "@/context/AuthContext";
+import CloseAllDialog from "@/components/CloseAllDialog";
 import PageContainer from "@/components/layout/PageContainer";
 import StatCard from "@/components/StatCard";
 import ClientCard from "@/components/klien/ClientCard";
@@ -28,11 +29,14 @@ export const prefetch = (qc) => qc.prefetchQuery(klienDashboardQuery);
 
 export default function KlienDashboard() {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const isSuper = user?.role === "superadmin";
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("semua");
   const [expanded, setExpanded] = useState(() => new Set());
   const [dialog, setDialog] = useState(null);
   const [exporting, setExporting] = useState(false);
+  const [closeOpen, setCloseOpen] = useState(false);
 
   const { data, isLoading, error } = useQuery(klienDashboardQuery);
   useEffect(() => {
@@ -136,6 +140,12 @@ export default function KlienDashboard() {
       pageDescription="Pantau stok barang titipan tiap klien, per PO dan per item."
       pageHeaderAction={(
         <div className="flex flex-wrap items-center gap-2">
+          {isSuper && (
+            <Button variant="outline" className="rounded-full gap-2 border-destructive/40 text-destructive hover:border-destructive/60 hover:bg-destructive/10 hover:text-destructive"
+              onClick={() => setCloseOpen(true)} data-testid="klien-close-all">
+              <Archive className="h-4 w-4" /> Tutup Data
+            </Button>
+          )}
           <Button variant="outline" className="rounded-full gap-2" onClick={doExport}
             disabled={exporting} data-testid="klien-export-pdf">
             <FileDown className="h-4 w-4" /> {exporting ? "Menyiapkan..." : "Export PDF"}
@@ -237,6 +247,24 @@ export default function KlienDashboard() {
       <ConfirmDeleteDialog open={dialog?.type === "delete"} onOpenChange={(o) => !o && setDialog(null)}
         title={dialog?.title} description={dialog?.description}
         onConfirm={dialog?.onConfirm || (() => Promise.resolve())} onDeleted={refetch} />
+
+      <CloseAllDialog
+        open={closeOpen}
+        onOpenChange={setCloseOpen}
+        title="Tutup Data Stok Klien"
+        description="Seperti Tutup Tahun: unduh PDF laporan stok klien sebagai arsip, lalu hapus semua data stok klien."
+        downloadLabel="Unduh PDF Stok Klien"
+        onDownload={() => kapi.exportKlienStokPdf("semua")}
+        deleteLabel="Hapus Semua Data Stok Klien"
+        confirmTitle="Yakin ingin menghapus SEMUA data stok klien?"
+        confirmDescription="Seluruh klien, PO, item, dan riwayat mutasi akan dihapus permanen. Tindakan ini tidak bisa dibatalkan."
+        onDelete={async () => {
+          const data = await kapi.closeAllKlien();
+          toast.success(`Data ditutup. ${data.klien_deleted} klien, ${data.po_deleted} PO, ${data.item_deleted} item, ${data.mutasi_deleted} mutasi dihapus.`);
+          refetch();
+        }}
+        testidPrefix="klien-close"
+      />
     </PageContainer>
   );
 }

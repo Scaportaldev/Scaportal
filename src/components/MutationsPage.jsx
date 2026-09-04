@@ -3,6 +3,7 @@ import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-quer
 import { Plus, Search, FileDown, Link2, Inbox } from "lucide-react";
 import { toast } from "sonner";
 import api, { downloadPdf } from "@/lib/api";
+import { invalidateStok } from "@/lib/queryInvalidation";
 import { useAuth, apiError } from "@/context/AuthContext";
 import { formatRupiah, formatNumber, formatDateID, todayStr, TRX_LABEL } from "@/lib/format";
 import MutationForm from "@/components/MutationForm";

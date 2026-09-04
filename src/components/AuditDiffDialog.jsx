@@ -21,8 +21,11 @@ import { Skeleton } from "@/components/ui/skeleton";
  *   onOpenChange : (open:boolean) => void
  */
 
-export const ACTION_LABEL = { edit: "Edit", delete: "Hapus", create: "Tambah", add: "Tambah", update: "Edit" };
-export const TYPE_LABEL = { paper: "Kertas", ink: "Tinta", other: "Lain" };
+export const ACTION_LABEL = {
+  edit: "Edit", delete: "Hapus", create: "Tambah", add: "Tambah", update: "Edit",
+  tutup_tahun: "Tutup Tahun", tutup_po: "Tutup PO", tutup_klien: "Tutup Stok Klien",
+};
+export const TYPE_LABEL = { paper: "Kertas", ink: "Tinta", other: "Lain", log: "Log", po: "PO", klien: "Stok Klien", all: "Semua" };
 
 const FIELD_LABEL = {
   date: "Tanggal", year: "Tahun", kode: "Kode", jenis_transaksi: "Jenis Transaksi", jumlah: "Jumlah",
@@ -34,6 +37,9 @@ const FIELD_LABEL = {
   nama_barang: "Nama Barang", satuan: "Satuan", harga_per_satuan: "Harga per Satuan",
   created_by_name: "Dibuat oleh", created_at: "Dibuat pada", updated_at: "Diperbarui pada",
   name: "Nama", username: "Username", role: "Peran", active: "Aktif", email: "Email", phone: "Telepon",
+  keterangan: "Keterangan", jumlah_dihapus: "Jumlah Dihapus",
+  po_deleted: "PO Dihapus", jadwal_deleted: "Jadwal Dihapus", foto_deleted: "Foto Dihapus",
+  klien_deleted: "Klien Dihapus", item_deleted: "Item Dihapus", mutasi_deleted: "Mutasi Dihapus",
 };
 // Field teknis yang tidak berguna untuk pembaca manusia.
 const HIDDEN_FIELDS = new Set(["id", "created_by", "_id", "password", "password_hash"]);

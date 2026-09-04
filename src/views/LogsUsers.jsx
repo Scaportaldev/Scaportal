@@ -143,6 +143,36 @@ function Inner() {
     catch (e) { toast.error(apiError(e)); }
   };
 
+  // Bersihkan Log Aktivitas / Audit Mutasi (khusus Superadmin)
+  const [clearTarget, setClearTarget] = useState(null); // "activity" | "audit"
+  const [clearing, setClearing] = useState(false);
+  const doClearLogs = async () => {
+    if (!clearTarget) return;
+    setClearing(true);
+    try {
+      const { data } = await api.delete(`/logs/${clearTarget}`);
+      toast.success(`${data?.deleted ?? 0} baris log berhasil dihapus.`);
+      setClearTarget(null);
+      setActPage(1); setAudPage(1);
+      queryClient.invalidateQueries({ queryKey: ["logs"] });
+    } catch (e) { toast.error(apiError(e)); }
+    finally { setClearing(false); }
+  };
+
+  const ClearLogButton = ({ target, testid }) => (
+    <div className="flex justify-end md:shrink-0">
+      <Button
+        variant="outline"
+        size="sm"
+        className="gap-2 border-destructive/40 text-destructive hover:border-destructive/60 hover:bg-destructive/10 hover:text-destructive"
+        data-testid={testid}
+        onClick={() => setClearTarget(target)}
+      >
+        <Trash2 className="h-4 w-4" /> Bersihkan Log
+      </Button>
+    </div>
+  );
+
   const changeTemp = async () => {
     if (tempPwd.length < 4) { toast.error("Password minimal 4 karakter."); return; }
     try { await api.post("/settings/temp-password", { new_password: tempPwd }); toast.success("Password akses sementara diperbarui."); setTempPwd(""); }
@@ -264,7 +294,8 @@ function Inner() {
         </TabsList>
 
         {/* ===================== Log Aktivitas ===================== */}
-        <TabsContent value="activity" className={TAB_CONTENT}>
+        <TabsContent value="activity" className={cn(TAB_CONTENT, "flex flex-col gap-3")}>
+          {isSuper && <ClearLogButton target="activity" testid="clear-activity-log-button" />}
           <div className={TABLE_WRAP} data-testid="activity-log-card">
             <MutasiTable
               columns={activityColumns}
@@ -290,7 +321,8 @@ function Inner() {
         </TabsContent>
 
         {/* ===================== Audit Mutasi ===================== */}
-        <TabsContent value="audit" className={TAB_CONTENT}>
+        <TabsContent value="audit" className={cn(TAB_CONTENT, "flex flex-col gap-3")}>
+          {isSuper && <ClearLogButton target="audit" testid="clear-audit-log-button" />}
           <div className={TABLE_WRAP} data-testid="audit-log-card">
             <MutasiTable
               columns={auditColumns}
@@ -401,6 +433,32 @@ function Inner() {
         onOpenChange={(o) => !o && setEditUser(null)}
         onSaved={loadLogs}
       />
+
+      <AlertDialog open={!!clearTarget} onOpenChange={(o) => !o && !clearing && setClearTarget(null)}>
+        <AlertDialogContent data-testid="clear-log-dialog">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {clearTarget === "activity" ? "Bersihkan semua Log Aktivitas?" : "Bersihkan semua Log Audit Mutasi?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {clearTarget === "activity"
+                ? "Semua riwayat login/logout akan dihapus permanen. Sesi yang masih aktif tetap dipertahankan. Tindakan ini tidak bisa dibatalkan."
+                : "Semua riwayat audit mutasi akan dihapus permanen. Satu catatan pembersihan akan tercatat sebagai jejak. Tindakan ini tidak bisa dibatalkan."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={clearing}>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              data-testid="confirm-clear-log"
+              disabled={clearing}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={(e) => { e.preventDefault(); doClearLogs(); }}
+            >
+              {clearing ? "Menghapus..." : "Hapus Semua"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={!!delUser} onOpenChange={(o) => !o && setDelUser(null)}>
         <AlertDialogContent>

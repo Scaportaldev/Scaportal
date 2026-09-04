@@ -43,6 +43,9 @@ async function download(params, filename) {
 export const exportKlienStokPdf = (status = "semua") =>
   download({ kind: "stok", status }, `Stok_Klien_SCA_${new Date().toISOString().slice(0, 10)}.pdf`);
 
+/** Tutup Stok Klien — hapus SEMUA data stok klien (khusus Superadmin, wajib unduh PDF dulu). */
+export const closeAllKlien = () => api.post("/klien/close").then((r) => r.data);
+
 export const exportKlienRiwayatPdf = (filters = {}) =>
   download(
     { kind: "riwayat", ...filters },

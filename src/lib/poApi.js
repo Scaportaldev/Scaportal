@@ -38,3 +38,6 @@ export async function exportPoRekapPdf(params = {}) {
   a.remove();
   window.URL.revokeObjectURL(url);
 }
+
+/** Tutup PO — hapus SEMUA data PO Tracker (khusus Superadmin, wajib unduh PDF dulu). */
+export const closeAllPo = () => api.post("/po/close").then((r) => r.data);

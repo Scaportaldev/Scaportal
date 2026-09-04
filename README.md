@@ -119,7 +119,7 @@ Password ini diubah Superadmin dari Log & User.
         │  └── pma  : phpMyAdmin → https://db.scaportal.cloud             │
         └─────────────────────────────────────────────────────────────────┘
                           │
-                          └──► Cloudflare R2 (bucket `sca-po-photos`, foto tahap PO)
+                          └──► Cloudflare R2 (bucket `scaportalstroage` via `cdn.scaportal.cloud`, foto tahap PO)
 ```
 
 | Komponen | Lokasi | Catatan |
@@ -313,7 +313,7 @@ Setiap push/merge ke `main` memicu **auto-redeploy**. Redeploy manual: tombol **
 - [ ] Password MariaDB memakai yang digenerate Coolify; resource MariaDB tetap **Private**.
 - [ ] Backup MariaDB terjadwal aktif (resource MariaDB → **Backups**), idealnya ke S3/R2.
 - [ ] phpMyAdmin hanya lewat HTTPS; pertimbangkan Cloudflare Access / IP allowlist, atau **Stop** saat tidak dipakai.
-- [ ] Token R2 dibatasi ke bucket `sca-po-photos` saja (Object Read & Write).
+- [ ] Token R2 dibatasi ke bucket `scaportalstroage` saja (Object Read & Write).
 - [ ] Cloudflare SSL mode **Full (strict)** bila proxy (awan oranye) dinyalakan.
 
 ---
@@ -323,16 +323,24 @@ Setiap push/merge ke `main` memicu **auto-redeploy**. Redeploy manual: tombol **
 R2 dipakai **PO Tracker** untuk menyimpan foto bukti tahapan produksi. Upload dilakukan dari server
 (API Next.js) → tidak butuh CORS. Foto diakses publik lewat `R2_PUBLIC_URL`.
 
+> **Konfigurasi yang dipakai saat ini (produksi):**
+> - Bucket: **`scaportalstroage`** (= `R2_BUCKET_NAME`)
+> - Public URL (custom domain): **`https://cdn.scaportal.cloud`** (= `R2_PUBLIC_URL`)
+> - Kredensial (`R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`) tersimpan di
+>   Coolify → Application → Environment Variables. Jangan hardcode di repo.
+
+Langkah setup dari nol (bila suatu saat ganti akun/bucket):
+
 1. **Aktifkan R2** — dash.cloudflare.com → **R2 Object Storage** → Get started (butuh metode pembayaran,
    gratis di bawah 10 GB / 1 juta operasi tulis per bulan, egress gratis).
-2. **Buat bucket** — nama `sca-po-photos` (= `R2_BUCKET_NAME`), lokasi *Automatic* atau APAC.
+2. **Buat bucket** — nama `scaportalstroage` (= `R2_BUCKET_NAME`), lokasi *Automatic* atau APAC.
 3. **Akses publik** — bucket → **Settings → Public access**:
    - *Opsi A* — **R2.dev subdomain → Allow Access** → dapat `https://pub-xxxx.r2.dev`, atau
-   - *Opsi B* — **Custom Domains → Connect Domain** (mis. `foto.scaportal.cloud`, domain harus di Cloudflare).
+   - *Opsi B* — **Custom Domains → Connect Domain** (saat ini dipakai: `cdn.scaportal.cloud`, domain harus di Cloudflare).
 
    Nilainya jadi `R2_PUBLIC_URL` (tanpa `/` di akhir).
 4. **API token** — R2 → **Manage R2 API Tokens → Create API token**: Permissions **Object Read & Write**,
-   *Apply to specific buckets only* → `sca-po-photos`, TTL Forever. Halaman hasil hanya tampil sekali — salin:
+   *Apply to specific buckets only* → `scaportalstroage`, TTL Forever. Halaman hasil hanya tampil sekali — salin:
    - Access Key ID → `R2_ACCESS_KEY_ID`
    - Secret Access Key → `R2_SECRET_ACCESS_KEY`
    - Endpoint `https://<ACCOUNT_ID>.r2.cloudflarestorage.com` → bagian `<ACCOUNT_ID>` = `R2_ACCOUNT_ID`
