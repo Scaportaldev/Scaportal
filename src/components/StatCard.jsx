@@ -1,11 +1,54 @@
+import { useLayoutEffect, useRef } from "react";
 import { Card } from "@/components/ui/card";
 
 /**
- * Struktur & posisi elemen dipertahankan persis (label di atas, nilai di
- * tengah, sub di bawah, ikon di kanan atas). Polish: ikon punya ring halus,
- * kartu terangkat sedikit saat hover (transform saja), dan nilai memakai
- * tabular-nums supaya digit lurus.
+ * Nilai kartu statistik menyusut otomatis (auto-fit) supaya angka rupiah panjang
+ * tidak terpotong "Rp 2.6..." di tablet (iPad / Android tablet) saat 4 kartu
+ * sejajar. Ukuran dasar tetap text-2xl; hanya mengecil bila lebar tidak cukup
+ * (minimal ~60% ukuran dasar), setelah itu baru fallback ke ellipsis.
  */
+const MIN_SCALE = 0.6;
+
+function FitValue({ children }) {
+  const ref = useRef(null);
+  const text = typeof children === "string" || typeof children === "number" ? String(children) : undefined;
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || typeof window === "undefined") return;
+    const parent = el.parentElement;
+    if (!parent) return;
+
+    const fit = () => {
+      el.style.fontSize = "";
+      const base = parseFloat(window.getComputedStyle(el).fontSize) || 24;
+      const avail = parent.clientWidth;
+      const need = el.scrollWidth;
+      if (avail > 0 && need > avail) {
+        const scale = Math.max(MIN_SCALE, avail / need);
+        el.style.fontSize = `${Math.floor(base * scale * 100) / 100}px`;
+      }
+    };
+
+    fit();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(fit);
+    ro.observe(parent);
+    return () => ro.disconnect();
+  }, [children]);
+
+  return (
+    <div
+      ref={ref}
+      title={text}
+      className="mt-2 font-display text-2xl font-extrabold leading-tight tracking-tight truncate [font-variant-numeric:tabular-nums]"
+      data-testid="stat-card-value"
+    >
+      {children}
+    </div>
+  );
+}
+
 export default function StatCard({ icon: Icon, label, value, sub, accent = "primary", testid }) {
   const accents = {
     primary: "bg-primary/10 text-primary ring-primary/15",
@@ -20,9 +63,9 @@ export default function StatCard({ icon: Icon, label, value, sub, accent = "prim
       data-testid={testid}
     >
       <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <div className="text-[11px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">{label}</div>
-          <div className="mt-2 font-display text-2xl font-extrabold tracking-tight truncate [font-variant-numeric:tabular-nums]">{value}</div>
+          <FitValue>{value}</FitValue>
           {sub && <div className="mt-1 text-xs text-muted-foreground [font-variant-numeric:tabular-nums]">{sub}</div>}
         </div>
         {Icon && (

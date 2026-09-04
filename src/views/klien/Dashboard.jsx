@@ -150,7 +150,7 @@ export default function KlienDashboard() {
         </div>
       )}
     >
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" data-testid="klien-summary">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" data-testid="klien-summary">
         <StatCard testid="stat-total_klien" icon={Building2} accent="primary"
           label="Total Klien" value={isLoading ? "—" : (s?.total_klien ?? 0)} />
         <StatCard testid="stat-total_po_aktif" icon={FileText} accent="sky"
