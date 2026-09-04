@@ -17,6 +17,14 @@ import {
   ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent,
 } from "@/components/ui/chart";
 
+
+// Definisi query dipakai useQuery DAN prefetch (hover menu) -> key selalu identik.
+export const dashboardQuery = {
+  queryKey: ["dashboard"],
+  queryFn: async () => (await api.get("/dashboard")).data,
+};
+export const prefetch = (qc) => qc.prefetchQuery(dashboardQuery);
+
 const TREND_CONFIG = {
   paper_masuk: { label: "Kertas Masuk", color: "hsl(var(--chart-1))" },
   paper_keluar: { label: "Kertas Keluar", color: "hsl(var(--chart-2))" },
@@ -32,10 +40,7 @@ const trxBadge = (t) => {
 export default function Dashboard() {
   const { perms } = useAuth();
   // Cache react-query: dashboard tampil instan dari cache, refresh di background.
-  const { data } = useQuery({
-    queryKey: ["dashboard"],
-    queryFn: async () => (await api.get("/dashboard")).data,
-  });
+  const { data } = useQuery(dashboardQuery);
 
   if (!data) return <PageContainer isLoading testid="stok-dashboard-loading" />;
 

@@ -6,7 +6,7 @@ import api, { downloadPdf } from "@/lib/api";
 import { useAuth, apiError } from "@/context/AuthContext";
 import { formatRupiah, formatNumber, formatDateID, todayStr, TRX_LABEL } from "@/lib/format";
 import MutationForm from "@/components/MutationForm";
-import PeriodFilter from "@/components/PeriodFilter";
+import PeriodFilter, { defaultPeriod } from "@/components/PeriodFilter";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,12 +30,40 @@ const trxBadge = (t) => {
 
 const TITLES = { paper: "Kertas", ink: "Tinta", other: "Lain" };
 
+// ---- Definisi query (dipakai useQuery di bawah DAN prefetch saat hover menu) ----
+export const mutationsQuery = (type, filterParams, page, pageSize) => ({
+  queryKey: ["mutations", type, filterParams, page, pageSize],
+  queryFn: async () => (await api.get(`/${type}/mutations`, { params: { ...filterParams, page, page_size: pageSize } })).data,
+});
+export const refsQuery = (type, year, transaksi) => ({
+  queryKey: ["refs", type, transaksi, year],
+  queryFn: async () => (await api.get(`/${type}/refs`, { params: { year, transaksi } })).data,
+});
+export const jenisQuery = (type) => ({
+  queryKey: ["jenis", type],
+  queryFn: async () => (await api.get(`/${type}/jenis`)).data,
+});
+/** Prefetch keadaan awal halaman mutasi: periode default, tanpa filter, hal 1, 25/hal. */
+export { defaultPeriod };
+export const makeMutationsPrefetch = (type) => (qc) => {
+  const year = new Date().getFullYear();
+  const { start, end } = defaultPeriod();
+  return Promise.all([
+    qc.prefetchQuery(mutationsQuery(type, { year, start, end }, 1, 25)),
+    qc.prefetchQuery(jenisQuery(type)),
+    qc.prefetchQuery(refsQuery(type, year, "keluar")),
+    qc.prefetchQuery(refsQuery(type, year, "masuk")),
+  ]);
+};
+
 export default function MutationsPage({ type }) {
   const isPaper = type === "paper";
   const isInk = type === "ink";
   const isOther = type === "other";
   const { user, perms } = useAuth();
-  const [period, setPeriod] = useState({ start: "", end: "" });
+  // Sama dengan nilai yang di-emit PeriodFilter saat mount (mode "Tahun Berjalan Penuh"),
+  // supaya query pertama sudah benar dan tidak ada request perantara yang terbuang.
+  const [period, setPeriod] = useState(() => defaultPeriod());
   const [fJenis, setFJenis] = useState("all");
   const [fTrx, setFTrx] = useState("all");
   const [fSupplier, setFSupplier] = useState("");
@@ -80,8 +108,7 @@ export default function MutationsPage({ type }) {
   // Filter & pagination dijalankan di server: hanya 1 halaman baris yang dikirim.
   const queryClient = useQueryClient();
   const { data: pageData, isLoading, error } = useQuery({
-    queryKey: ["mutations", type, filterParams, page, pageSize],
-    queryFn: async () => (await api.get(`${base}/mutations`, { params: { ...filterParams, page, page_size: pageSize } })).data,
+    ...mutationsQuery(type, filterParams, page, pageSize),
     placeholderData: keepPreviousData,
   });
   const rows = pageData?.items ?? [];
@@ -89,18 +116,9 @@ export default function MutationsPage({ type }) {
 
   // Opsi referensi untuk form (dropdown mutasi Keluar/Masuk) — endpoint ringan, tidak
   // tergantung halaman/filter yang sedang dilihat.
-  const { data: keluarOptions = [] } = useQuery({
-    queryKey: ["refs", type, "keluar", year],
-    queryFn: async () => (await api.get(`${base}/refs`, { params: { year, transaksi: "keluar" } })).data,
-  });
-  const { data: masukOptions = [] } = useQuery({
-    queryKey: ["refs", type, "masuk", year],
-    queryFn: async () => (await api.get(`${base}/refs`, { params: { year, transaksi: "masuk" } })).data,
-  });
-  const { data: jenisOptions = [] } = useQuery({
-    queryKey: ["jenis", type],
-    queryFn: async () => (await api.get(`${base}/jenis`)).data,
-  });
+  const { data: keluarOptions = [] } = useQuery(refsQuery(type, year, "keluar"));
+  const { data: masukOptions = [] } = useQuery(refsQuery(type, year, "masuk"));
+  const { data: jenisOptions = [] } = useQuery(jenisQuery(type));
   useEffect(() => { if (error) toast.error(apiError(error)); }, [error]);
 
   // Dipanggil setelah tambah/edit/hapus mutasi — invalidasi cache agar refetch.

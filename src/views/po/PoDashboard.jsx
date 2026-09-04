@@ -7,6 +7,10 @@ import * as api from "@/lib/poApi";
 import { Card } from "@/components/ui/card";
 import PageContainer from "@/components/layout/PageContainer";
 
+
+export const poDashboardQuery = { queryKey: ["po", "dashboard"], queryFn: () => api.poDashboard() };
+export const prefetch = (qc) => qc.prefetchQuery(poDashboardQuery);
+
 const ORDER = [
   "waiting_1", "waiting_2", "waiting_3",
   "stage_4", "stage_5", "stage_6", "stage_7", "stage_8", "stage_9", "stage_10",
@@ -17,10 +21,7 @@ export default function PoDashboard() {
   const { t } = useLang();
   const navigate = useNavigate();
   // Cache react-query: tampil instan dari cache, refresh otomatis di background.
-  const { data } = useQuery({
-    queryKey: ["po", "dashboard"],
-    queryFn: () => api.poDashboard(),
-  });
+  const { data } = useQuery(poDashboardQuery);
   const counts = data?.counts || {};
   const goto = (bucket) => navigate(`/po/pos${bucket ? `?bucket=${bucket}` : ""}`);
 

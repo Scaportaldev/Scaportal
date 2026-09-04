@@ -12,6 +12,12 @@ import {
 // layout, sehingga induknya bisa menata semua filter dalam SATU grid. Ini
 // dipakai di halaman Mutasi supaya di HP kolom-kolomnya sejajar rapi, bukan
 // membungkus di titik acak seperti pada flex-wrap dengan lebar tetap.
+/** Periode default mode "full" (sama dengan yang di-emit saat mount): 1 Jan tahun berjalan s/d hari ini. */
+export const defaultPeriod = () => {
+  const year = new Date().getFullYear();
+  return { start: `${year}-01-01`, end: todayStr() };
+};
+
 export default function PeriodFilter({ onChange, asFields = false }) {
   const year = new Date().getFullYear();
   const [mode, setMode] = useState("full");

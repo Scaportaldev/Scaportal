@@ -7,6 +7,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
+import { useQueryClient } from "@tanstack/react-query";
+import { warmRoute, preloadAllRoutesWhenIdle } from "@/lib/routePreload";
 import { useLang } from "@/context/LangContext";
 import ThemeToggle from "@/components/ThemeToggle";
 import Logo from "@/components/Logo";
@@ -27,6 +29,10 @@ export default function AppShell() {
   const { user, logout, sectionUnlocked, perms } = useAuth();
   const { lang, setLang } = useLang();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  // Navigasi instan: setelah shell tampil, preload semua chunk halaman saat browser idle.
+  useEffect(() => { preloadAllRoutesWhenIdle(); }, []);
   const [open, setOpen] = useState(false);
   const [warn, setWarn] = useState(false);
   const warnRef = useRef(null);
@@ -98,12 +104,20 @@ export default function AppShell() {
 
   const noTools = !stokMenu.length && !poMenu.length && !klienMenu.length && !tempoMenu.length && !hppMenu.length && !logUserItem;
 
+  // Hover/fokus/sentuh item menu -> chunk + data halaman itu di-prefetch, jadi saat
+  // diklik langsung tampil dari cache (tanpa skeleton). Pointer cepat lewat diabaikan
+  // oleh cooldown di warmRoute.
+  const warm = (to) => () => warmRoute(to, queryClient);
+
   const NavItem = ({ item }) => (
     <NavLink to={item.to} end={item.end}
       data-testid={`nav-${item.label.toLowerCase().replace(/[^a-z]+/g, "-")}`}
       onClick={() => setOpen(false)}
+      onMouseEnter={warm(item.to)}
+      onFocus={warm(item.to)}
+      onTouchStart={warm(item.to)}
       className={({ isActive }) =>
-        `flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-[color,background-color,box-shadow,opacity] duration-200 ease-out ${isActive
+        `pressable flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium ${isActive
           ? "bg-primary text-primary-foreground shadow-glow"
           : "text-muted-foreground hover:bg-secondary hover:text-foreground"}`}>
       <item.icon className="h-4 w-4 shrink-0 transition-transform duration-200 ease-out" />

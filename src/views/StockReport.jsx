@@ -14,15 +14,19 @@ import {
 import MutasiTable from "@/components/MutasiTable";
 import PageContainer from "@/components/layout/PageContainer";
 
+
+export const stockQuery = {
+  queryKey: ["reports", "stock"],
+  queryFn: async () => (await api.get("/reports/stock")).data,
+};
+export const prefetch = (qc) => qc.prefetchQuery(stockQuery);
+
 export default function StockReport() {
   const { perms } = useAuth();
   const [fSupplier, setFSupplier] = useState("all");
 
   // Cache react-query: tampil instan dari cache, refresh otomatis di background.
-  const { data, error } = useQuery({
-    queryKey: ["reports", "stock"],
-    queryFn: async () => (await api.get("/reports/stock")).data,
-  });
+  const { data, error } = useQuery(stockQuery);
   useEffect(() => { if (error) toast.error(apiError(error)); }, [error]);
 
   const dl = async (path, name) => {

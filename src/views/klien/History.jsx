@@ -21,6 +21,10 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 
+
+export const kliensQuery = { queryKey: ["klien", "clients"], queryFn: kapi.listKliens };
+export const prefetch = (qc) => qc.prefetchQuery(kliensQuery);
+
 const INIT = { klien_id: "semua", po_id: "semua", jenis: "semua", start: "", end: "" };
 
 export function MutasiBadge({ jenis }) {
@@ -49,10 +53,7 @@ export default function KlienHistory() {
   const [delMut, setDelMut] = useState(null);
   const [exporting, setExporting] = useState(false);
 
-  const { data: kliens = [] } = useQuery({
-    queryKey: ["klien", "clients"],
-    queryFn: kapi.listKliens,
-  });
+  const { data: kliens = [] } = useQuery(kliensQuery);
 
   const { data: pos = [] } = useQuery({
     queryKey: ["klien", "pos", filters.klien_id],

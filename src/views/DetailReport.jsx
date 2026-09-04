@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import {
   BarChart, Bar, AreaChart, Area,
   XAxis, YAxis, CartesianGrid,
@@ -10,6 +11,14 @@ import { useAuth, apiError } from "@/context/AuthContext";
 import { formatRupiah, formatDateID } from "@/lib/format";
 import SectionGate from "@/components/SectionGate";
 import PeriodFilter from "@/components/PeriodFilter";
+import { defaultPeriod } from "@/components/PeriodFilter";
+
+// Query dipakai useQuery DAN prefetch (hover menu). Key: ["reports","detail",start,end].
+export const detailQuery = (start, end) => ({
+  queryKey: ["reports", "detail", start, end],
+  queryFn: async () => (await api.get("/reports/detail", { params: { start, end } })).data,
+});
+export const prefetch = (qc) => { const { start, end } = defaultPeriod(); return qc.prefetchQuery(detailQuery(start, end)); };
 import StatCard from "@/components/StatCard";
 import ChartBox from "@/components/ChartBox";
 import CompositionDonut from "@/components/CompositionDonut";
@@ -64,19 +73,18 @@ function Inner() {
   const { user, perms } = useAuth();
   const isSuper = user?.role === "superadmin";
   const [period, setPeriod] = useState({ start: "", end: "", label: "" });
-  const [data, setData] = useState(null);
   const [pdfOpen, setPdfOpen] = useState(false);
   const [pdfPwd, setPdfPwd] = useState("");
   const [pdfKind, setPdfKind] = useState("detail");
 
-  const load = useCallback(() => {
-    if (!period.start) return;
-    api.get("/reports/detail", { params: { start: period.start, end: period.end } })
-      .then((r) => setData(r.data))
-      .catch((e) => toast.error(apiError(e)));
-  }, [period]);
-
-  useEffect(() => { load(); }, [load]);
+  // Cache react-query (staleTime global): buka ulang halaman/periode yang sama -> instan.
+  // Cache di-invalidate saat ada tulis mutasi (invalidateStok) & Tutup Tahun.
+  const { data, error } = useQuery({
+    ...detailQuery(period.start, period.end),
+    enabled: !!period.start,
+    placeholderData: keepPreviousData,
+  });
+  useEffect(() => { if (error) toast.error(apiError(error)); }, [error]);
 
   /** Unduh PDF tanpa cek password (dipakai setelah verifikasi / untuk superadmin). */
   const runDownload = async (kind) => {

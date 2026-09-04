@@ -1,5 +1,6 @@
 import "@/App.css";
 import { lazy, Suspense } from "react";
+import { preloadRoute } from "@/lib/routePreload";
 import { ThemeProvider } from "next-themes";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
@@ -13,29 +14,32 @@ import AppSkeleton from "@/components/AppSkeleton";
 // Library berat (recharts di Dashboard/PO, dsb) otomatis ikut chunk halamannya,
 // sehingga bundle awal (login + shell) jauh lebih kecil & first load lebih cepat.
 // Stok
-const Dashboard = lazy(() => import("@/views/Dashboard"));
-const PaperMutations = lazy(() => import("@/views/PaperMutations"));
-const InkMutations = lazy(() => import("@/views/InkMutations"));
-const OtherMutations = lazy(() => import("@/views/OtherMutations"));
-const StockReport = lazy(() => import("@/views/StockReport"));
-const DetailReport = lazy(() => import("@/views/DetailReport"));
-const LogsUsers = lazy(() => import("@/views/LogsUsers"));
-const YearClose = lazy(() => import("@/views/YearClose"));
-// HPP
-const HppCalculator = lazy(() => import("@/views/hpp/Calculator"));
-// PO Tracker
-const PoDashboard = lazy(() => import("@/views/po/PoDashboard"));
-const PoList = lazy(() => import("@/views/po/PoList"));
-const PoForm = lazy(() => import("@/views/po/PoForm"));
-const PoDetail = lazy(() => import("@/views/po/PoDetail"));
-const PoCalendar = lazy(() => import("@/views/po/PoCalendar"));
-// Stok Klien (tool baru)
-const KlienDashboard = lazy(() => import("@/views/klien/Dashboard"));
-const KlienHistory = lazy(() => import("@/views/klien/History"));
-// Jatuh Tempo Klien
-const TempoInvoices = lazy(() => import("@/views/tempo/Invoices"));
-const TempoReports = lazy(() => import("@/views/tempo/Reports"));
-const NoAccess = lazy(() => import("@/views/NoAccess"));
+// Chunk halaman dimuat lewat registry (src/lib/routePreload.js) supaya preload saat
+// idle / hover menu memakai promise yang sama dengan React.lazy di sini.
+const L = (path) => lazy(() => preloadRoute(path));
+const Dashboard = L("/stok");
+const PaperMutations = L("/stok/kertas");
+const InkMutations = L("/stok/tinta");
+const OtherMutations = L("/stok/lainnya");
+const StockReport = L("/stok/laporan-stok");
+const DetailReport = L("/stok/laporan-detail");
+const LogsUsers = L("/stok/log-user");
+const YearClose = L("/stok/tutup-tahun");
+
+const HppCalculator = L("/hpp");
+
+const PoDashboard = L("/po");
+const PoList = L("/po/pos");
+const PoForm = L("/po/pos/new");
+const PoDetail = L("/po/pos/:id");
+const PoCalendar = L("/po/kalender");
+
+const KlienDashboard = L("/stok-klien");
+const KlienHistory = L("/stok-klien/riwayat");
+
+const TempoInvoices = L("/tempo");
+const TempoReports = L("/tempo/laporan");
+const NoAccess = L("/tidak-ada-akses");
 
 function Protected({ children }) {
   const { user } = useAuth();
