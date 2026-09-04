@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback, Suspense } from "react";
-import { Outlet, NavLink, useNavigate } from "react-router-dom";
+import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom";
 import {
   LayoutDashboard, FileStack, Droplets, Package, ClipboardList, BarChart3,
   Users, CalendarX, Menu, X, Lock, Calculator,
@@ -29,6 +29,7 @@ export default function AppShell() {
   const { user, logout, sectionUnlocked, perms } = useAuth();
   const { lang, setLang } = useLang();
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
 
   // Navigasi instan: setelah shell tampil, preload semua chunk halaman saat browser idle.
@@ -247,7 +248,11 @@ export default function AppShell() {
               </div>
             }
           >
-            <Outlet />
+            {/* Transisi halaman: key per pathname -> konten baru masuk dengan fade+slide 150ms.
+                Wrapper flex-1/min-h-0 menjaga halaman fillHeight (tabel) tetap mengisi tinggi. */}
+            <div key={location.pathname} className="page-enter flex min-h-0 flex-1 flex-col" data-testid="page-transition">
+              <Outlet />
+            </div>
           </Suspense>
         </main>
       </div>
