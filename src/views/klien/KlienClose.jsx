@@ -8,7 +8,7 @@ export default function KlienClose() {
   return (
     <ClosePage
       testid="klien-close-page"
-      pageTitle="Tutup Data Klien"
+      pageTitle="Tutup Stok Klien"
       pageDescription="Unduh PDF laporan stok klien sebagai arsip, lalu reset seluruh data stok klien."
       downloadLabel="Unduh PDF Stok Klien"
       downloadNote="PDF Laporan Stok Klien (semua status item)"

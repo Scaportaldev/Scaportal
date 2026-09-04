@@ -68,7 +68,7 @@ export default function CommandPalette({ open, onOpenChange }) {
       { to: "/stok/laporan-stok", label: "Laporan Stok", icon: ICONS.laporan, show: perms.canStokReport },
       { to: "/stok/laporan-detail", label: "Laporan Detail", icon: ICONS.detail, show: perms.canStokDetail },
       { to: "/stok/log-user", label: "Log & User", icon: ICONS.log, show: perms.canStokLogs },
-      { to: "/stok/tutup-tahun", label: "Tutup Tahun", icon: ICONS.tahun, show: perms.canStokYearClose },
+      { to: "/stok/tutup-tahun", label: "Tutup Laporan Stok", icon: ICONS.tahun, show: perms.canStokYearClose },
     ].filter((i) => i.show);
 
     const po = perms.canPo
@@ -77,7 +77,7 @@ export default function CommandPalette({ open, onOpenChange }) {
           { to: "/po/pos", label: "Daftar PO", icon: ICONS.poList, show: true },
           { to: "/po/pos/new", label: "Buat PO Baru", icon: ListTodo, show: true },
           { to: "/po/kalender", label: "Kalender Jadwal", icon: ICONS.kalender, show: true },
-          { to: "/po/tutup", label: "Tutup PO", icon: ICONS.tahun, show: isSuper },
+          { to: "/po/tutup", label: "Tutup Tracking PO", icon: ICONS.tahun, show: isSuper },
         ].filter((i) => i.show)
       : [];
 
@@ -89,7 +89,7 @@ export default function CommandPalette({ open, onOpenChange }) {
       ? [
           { to: "/stok-klien", label: "Dashboard Stok Klien", icon: Boxes, show: true },
           { to: "/stok-klien/riwayat", label: "Riwayat Mutasi Klien", icon: History, show: true },
-          { to: "/stok-klien/tutup", label: "Tutup Data Klien", icon: ICONS.tahun, show: isSuper },
+          { to: "/stok-klien/tutup", label: "Tutup Stok Klien", icon: ICONS.tahun, show: isSuper },
         ].filter((i) => i.show)
       : [];
 
