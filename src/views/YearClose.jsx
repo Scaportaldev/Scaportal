@@ -88,12 +88,12 @@ function Inner() {
   return (
     <PageContainer
       testid="year-close-page"
-      className="mx-auto max-w-2xl"
+      className="mx-auto w-full max-w-2xl"
       pageTitle="Tutup Tahun"
       pageDescription={`Unduh laporan akhir tahun ${year}, lalu reset data untuk tahun baru.`}
     >
 
-      <Card className="p-6 space-y-4">
+      <Card className="min-h-[248px] p-6 space-y-4">
         <div className="flex items-center gap-3">
           <div className="grid h-11 w-11 place-items-center rounded-md bg-amber-500/15 text-amber-600"><CalendarX className="h-5 w-5" /></div>
           <div>
@@ -117,7 +117,7 @@ function Inner() {
         </div>
       </Card>
 
-      <Card className="p-6 space-y-4">
+      <Card className="min-h-[202px] p-6 space-y-4">
         <div>
           <h3 className="font-display text-lg font-bold">Langkah 2 — Reset Data Tahun</h3>
           <p className="text-sm text-muted-foreground">Menghapus SELURUH data mutasi kertas & tinta. Data user & log tetap tersimpan.</p>

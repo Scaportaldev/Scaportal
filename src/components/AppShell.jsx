@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useCallback, Suspense } from "react";
 import { Outlet, NavLink, useNavigate, useLocation } from "react-router-dom";
 import {
   LayoutDashboard, FileStack, Droplets, Package, ClipboardList, BarChart3,
-  Users, CalendarX, Menu, X, Lock, Calculator,
+  Users, CalendarX, Menu, X, Lock, Calculator, Archive,
   ListTodo, CalendarDays, Globe, Boxes, History, Receipt, PieChart,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -94,7 +94,8 @@ export default function AppShell() {
         { to: "/po", label: "Dashboard PO", icon: LayoutDashboard, end: true },
         { to: "/po/pos", label: "Daftar PO", icon: ListTodo },
         { to: "/po/kalender", label: "Kalender Jadwal", icon: CalendarDays },
-      ]
+        { to: "/po/tutup", label: "Tutup PO", icon: Archive, show: isSuper },
+      ].filter((m) => m.show !== false)
     : [];
 
   const hppMenu = perms.canHpp ? [{ to: "/hpp", label: "Kalkulator HPP", icon: Calculator, end: true }] : [];
@@ -103,7 +104,8 @@ export default function AppShell() {
     ? [
         { to: "/stok-klien", label: "Dashboard Stok Klien", icon: Boxes, end: true },
         { to: "/stok-klien/riwayat", label: "Riwayat Mutasi Klien", icon: History },
-      ]
+        { to: "/stok-klien/tutup", label: "Tutup Data Klien", icon: Archive, show: isSuper },
+      ].filter((m) => m.show !== false)
     : [];
 
   const tempoMenu = perms.canTempo

@@ -22,6 +22,7 @@ const ROUTE_LABELS = {
   hpp: "Kalkulator HPP",
   "stok-klien": "Stok Klien",
   riwayat: "Riwayat Mutasi",
+  tutup: "Tutup Data",
   tempo: "Jatuh Tempo Klien",
   laporan: "Laporan",
 };

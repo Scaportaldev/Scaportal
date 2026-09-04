@@ -55,7 +55,8 @@ export function CommandPaletteTrigger({ onOpen }) {
 
 export default function CommandPalette({ open, onOpenChange }) {
   const navigate = useNavigate();
-  const { perms, logout } = useAuth();
+  const { perms, logout, user } = useAuth();
+  const isSuper = user?.role === "superadmin";
   const { theme, setTheme } = useTheme();
 
   const groups = useMemo(() => {
@@ -76,7 +77,8 @@ export default function CommandPalette({ open, onOpenChange }) {
           { to: "/po/pos", label: "Daftar PO", icon: ICONS.poList, show: true },
           { to: "/po/pos/new", label: "Buat PO Baru", icon: ListTodo, show: true },
           { to: "/po/kalender", label: "Kalender Jadwal", icon: ICONS.kalender, show: true },
-        ]
+          { to: "/po/tutup", label: "Tutup PO", icon: ICONS.tahun, show: isSuper },
+        ].filter((i) => i.show)
       : [];
 
     const hpp = perms.canHpp
@@ -85,9 +87,10 @@ export default function CommandPalette({ open, onOpenChange }) {
 
     const klien = perms.canStokKlien
       ? [
-          { to: "/stok-klien", label: "Dashboard Stok Klien", icon: Boxes },
-          { to: "/stok-klien/riwayat", label: "Riwayat Mutasi Klien", icon: History },
-        ]
+          { to: "/stok-klien", label: "Dashboard Stok Klien", icon: Boxes, show: true },
+          { to: "/stok-klien/riwayat", label: "Riwayat Mutasi Klien", icon: History, show: true },
+          { to: "/stok-klien/tutup", label: "Tutup Data Klien", icon: ICONS.tahun, show: isSuper },
+        ].filter((i) => i.show)
       : [];
 
     const tempo = perms.canTempo
@@ -104,7 +107,7 @@ export default function CommandPalette({ open, onOpenChange }) {
       ...(tempo.length ? [{ heading: "Jatuh Tempo Klien", items: tempo }] : []),
       ...(hpp.length ? [{ heading: "Kalkulator", items: hpp }] : []),
     ].filter((g) => g.items.length > 0);
-  }, [perms]);
+  }, [perms, isSuper]);
 
   const go = (to) => {
     onOpenChange(false);
