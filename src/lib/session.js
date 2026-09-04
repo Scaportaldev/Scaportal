@@ -59,8 +59,83 @@ export function clearClientSession() {
     s?.removeItem(TOKEN_KEY);
     s?.removeItem(TAB_KEY);
     s?.removeItem(ACTIVITY_KEY);
+    s?.removeItem(CLOSED_KEY);
+    s?.removeItem(ALIVE_KEY);
   } catch {}
   try {
     if (typeof window !== "undefined") LEGACY_LOCAL_KEYS.forEach((k) => window.localStorage.removeItem(k));
   } catch {}
+}
+
+// ---------------------------------------------------------------------------
+// Deteksi "tab ditutup lalu dipulihkan browser" — ABSOLUT: tab ditutup = login ulang.
+// Chrome/Safari (terutama Android & iPad) MEMULIHKAN sessionStorage saat tab yang
+// ditutup dibuka lagi ("buka tab yang baru ditutup") atau saat browser dibuka
+// ulang, sehingga penanda sesi tab ikut hidup lagi. Penanganan:
+//  - saat tab ditutup (pagehide, bukan bfcache) → catat CLOSED_KEY = waktu tutup;
+//  - selama tab terlihat → catat ALIVE_KEY tiap 5 detik (detak hidup).
+// Saat aplikasi dimuat ulang dengan penanda sesi tab yang masih ada:
+//  - CLOSED_KEY lebih tua dari RELOAD_GRACE → tab dipulihkan (bukan reload) → login ulang;
+//  - tanpa CLOSED_KEY (proses browser dimatikan paksa tanpa pagehide) tapi detak
+//    terakhir lebih tua dari ALIVE_STALE → tab sempat mati → login ulang.
+// Reload biasa (Ctrl+R / tarik ke bawah) selesai dalam hitungan detik → tetap login.
+// ---------------------------------------------------------------------------
+const CLOSED_KEY = "sca_tab_closed_at";
+const ALIVE_KEY = "sca_tab_alive_at";
+const RELOAD_GRACE_MS = 10 * 1000;
+const ALIVE_STALE_MS = 30 * 1000;
+export const ALIVE_BEAT_MS = 5 * 1000;
+
+export function markTabClosed(now = Date.now()) {
+  try { ss()?.setItem(CLOSED_KEY, String(now)); } catch {}
+}
+
+export function clearTabClosed() {
+  try { ss()?.removeItem(CLOSED_KEY); } catch {}
+}
+
+export function beatAlive(now = Date.now()) {
+  try { ss()?.setItem(ALIVE_KEY, String(now)); } catch {}
+}
+
+function readTs(key) {
+  try {
+    const v = Number(ss()?.getItem(key));
+    return Number.isFinite(v) && v > 0 ? v : null;
+  } catch { return null; }
+}
+
+/**
+ * true bila tab ini sebelumnya sudah DITUTUP (atau mati) dan kini dipulihkan browser,
+ * sehingga sesi tidak boleh dilanjutkan. Dipanggil sekali saat aplikasi dimuat.
+ */
+export function wasTabClosed(now = Date.now()) {
+  const closedAt = readTs(CLOSED_KEY);
+  if (closedAt) return now - closedAt > RELOAD_GRACE_MS;
+  const aliveAt = readTs(ALIVE_KEY);
+  if (aliveAt) return now - aliveAt > ALIVE_STALE_MS;
+  return false;
+}
+
+/**
+ * Pasang pemantau siklus hidup tab (pagehide/pageshow/visibility + detak 5 detik).
+ * Mengembalikan fungsi pembersih.
+ */
+export function installTabLifecycle() {
+  if (typeof window === "undefined") return () => {};
+  const onPageHide = (e) => { if (!e.persisted) markTabClosed(); else clearTabClosed(); };
+  const onPageShow = (e) => { if (e.persisted) { clearTabClosed(); beatAlive(); } };
+  const onVisibility = () => { if (document.visibilityState === "visible") beatAlive(); };
+  const timer = setInterval(() => { if (document.visibilityState === "visible") beatAlive(); }, ALIVE_BEAT_MS);
+  window.addEventListener("pagehide", onPageHide);
+  window.addEventListener("pageshow", onPageShow);
+  document.addEventListener("visibilitychange", onVisibility);
+  clearTabClosed();
+  beatAlive();
+  return () => {
+    clearInterval(timer);
+    window.removeEventListener("pagehide", onPageHide);
+    window.removeEventListener("pageshow", onPageShow);
+    document.removeEventListener("visibilitychange", onVisibility);
+  };
 }
