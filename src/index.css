@@ -152,6 +152,25 @@ th.text-right {
     animation: fadeUp 0.22s ease-out both;
 }
 
+/* ==========================================================================
+   PRESSABLE — feedback taktil saat ditekan (ala Vercel/Claude): mengecil halus,
+   lepas dengan easing "spring" cepat. Dipakai item menu, tab, dan aksi kecil.
+   ========================================================================== */
+.pressable {
+    transition-property: transform, background-color, color, box-shadow, opacity;
+    transition-duration: 180ms;
+    transition-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+    will-change: transform;
+}
+.pressable:active {
+    transform: scale(0.975);
+    transition-duration: 70ms;
+}
+@media (hover: hover) {
+    .pressable:hover { transform: translateY(-0.5px); }
+    .pressable:active { transform: scale(0.975); }
+}
+
 /* Skeleton shimmer */
 @keyframes shimmer {
     100% { transform: translateX(100%); }
@@ -162,6 +181,7 @@ th.text-right {
     .animate-fade-up {
         animation: none;
     }
+    .pressable, .pressable:active, .pressable:hover { transform: none; }
     *,
     *::before,
     *::after {

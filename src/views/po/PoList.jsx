@@ -20,6 +20,17 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 
+
+export const poMonthsQuery = { queryKey: ["po", "months"], queryFn: () => api.listPoMonths() };
+export const poListQuery = (q, page, pageSize) => ({
+  queryKey: ["po", "list", q, page, pageSize],
+  queryFn: () => api.listPosPaged({ ...q, page, page_size: pageSize }),
+});
+export const prefetch = (qc) => Promise.all([
+  qc.prefetchQuery(poMonthsQuery),
+  qc.prefetchQuery(poListQuery({}, 1, 24)),
+]);
+
 const FILTER_BUCKETS = [
   "active", "completed", "waiting_1", "waiting_2", "waiting_3",
   "stage_4", "stage_5", "stage_6", "stage_7", "stage_8", "stage_9", "stage_10",
@@ -54,10 +65,7 @@ export default function PoList() {
   // Cache react-query: tampil instan dari cache, refresh otomatis di background.
   const queryClient = useQueryClient();
   // Dropdown bulan: endpoint ringan (DISTINCT di SQL), bukan memuat seluruh PO.
-  const { data: allMonths = [] } = useQuery({
-    queryKey: ["po", "months"],
-    queryFn: () => api.listPoMonths(),
-  });
+  const { data: allMonths = [] } = useQuery(poMonthsQuery);
 
   const downloadPdf = async () => {
     try {
@@ -83,8 +91,7 @@ export default function PoList() {
 
   // Pagination di server: hanya satu halaman kartu yang dikirim (tanpa log & stage_data).
   const { data: pageData, isLoading: loading, error } = useQuery({
-    queryKey: ["po", "list", q, page, pageSize],
-    queryFn: () => api.listPosPaged({ ...q, page, page_size: pageSize }),
+    ...poListQuery(q, page, pageSize),
     placeholderData: keepPreviousData,
   });
   const pos = pageData?.items ?? [];

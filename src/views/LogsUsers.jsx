@@ -32,6 +32,12 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogAction, AlertDialogCancel,
 } from "@/components/ui/alert-dialog";
 
+export const activityQuery = (page, pageSize) => ({
+  queryKey: ["logs", "activity", page, pageSize],
+  queryFn: async () => (await api.get("/logs/activity", { params: { page, page_size: pageSize } })).data,
+});
+export const prefetch = (qc) => qc.prefetchQuery(activityQuery(1, 25));
+
 // Wrapper tabel/kartu yang sama dengan halaman Mutasi:
 // desktop = Card mengisi sisa tinggi (scroll internal), mobile = kartu di atas background halaman.
 const TABLE_WRAP = "flex flex-col gap-3 md:gap-0 md:min-h-0 md:flex-1 md:overflow-hidden md:rounded-xl md:border md:border-border/70 md:bg-card md:text-card-foreground md:shadow-soft";
@@ -87,8 +93,7 @@ function Inner() {
   // Cache react-query: tampil instan dari cache, refresh otomatis di background.
   const queryClient = useQueryClient();
   const { data: activityPage, isLoading: actLoading } = useQuery({
-    queryKey: ["logs", "activity", actPage, actSize],
-    queryFn: async () => (await api.get("/logs/activity", { params: { page: actPage, page_size: actSize } })).data,
+    ...activityQuery(actPage, actSize),
     placeholderData: keepPreviousData,
   });
   const { data: auditPage, isLoading: audLoading } = useQuery({

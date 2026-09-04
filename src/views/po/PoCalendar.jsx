@@ -1,7 +1,14 @@
 import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, Plus, X, CalendarDays } from "lucide-react";
 import { toast } from "sonner";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+
+// Jadwal + PO untuk kalender — dipakai useQuery DAN prefetch (hover menu).
+export const calendarQuery = {
+  queryKey: ["po", "calendar"],
+  queryFn: async () => { const [schedules, pos] = await Promise.all([api.listSchedules(), api.listPos()]); return { schedules, pos }; },
+};
+export const prefetch = (qc) => qc.prefetchQuery(calendarQuery);
 import { invalidatePo } from "@/lib/queryInvalidation";
 import * as api from "@/lib/poApi";
 import { useLang } from "@/context/LangContext";
@@ -25,8 +32,6 @@ function monthName(d, lang) { return d.toLocaleDateString(lang === "id" ? "id-ID
 export default function PoCalendar() {
   const { t, stageName, lang } = useLang();
   const [cursor, setCursor] = useState(() => { const d = new Date(); return new Date(d.getFullYear(), d.getMonth(), 1); });
-  const [schedules, setSchedules] = useState([]);
-  const [pos, setPos] = useState([]);
   const [selectedDay, setSelectedDay] = useState(null);
   const [open, setOpen] = useState(false);
   const [formPo, setFormPo] = useState("");
@@ -34,11 +39,10 @@ export default function PoCalendar() {
   const [formDate, setFormDate] = useState("");
 
   const queryClient = useQueryClient();
-  const load = async () => {
-    try { const [s, p] = await Promise.all([api.listSchedules(), api.listPos()]); setSchedules(s); setPos(p); }
-    catch (e) { toast.error(e?.response?.data?.detail || "Gagal"); }
-  };
-  useEffect(() => { load(); }, []);
+  const { data: cal, error } = useQuery(calendarQuery);
+  const schedules = cal?.schedules ?? [];
+  const pos = cal?.pos ?? [];
+  useEffect(() => { if (error) toast.error(error?.response?.data?.detail || "Gagal"); }, [error]);
 
   const year = cursor.getFullYear();
   const month = cursor.getMonth();
@@ -58,12 +62,12 @@ export default function PoCalendar() {
 
   const addSchedule = async () => {
     if (!formPo || !formStage || !formDate) { toast.error(t("selectPO")); return; }
-    try { await api.createSchedule({ po_id: formPo, stage_number: parseInt(formStage), date: formDate }); setOpen(false); invalidatePo(queryClient); load(); toast.success("Jadwal ditambah"); }
+    try { await api.createSchedule({ po_id: formPo, stage_number: parseInt(formStage), date: formDate }); setOpen(false); invalidatePo(queryClient); toast.success("Jadwal ditambah"); }
     catch (e) { toast.error(e?.response?.data?.detail || "Gagal"); }
   };
 
   const delSchedule = async (sid) => {
-    try { await api.deleteSchedule(sid); invalidatePo(queryClient); load(); toast.success("Dihapus"); }
+    try { await api.deleteSchedule(sid); invalidatePo(queryClient); toast.success("Dihapus"); }
     catch (e) { toast.error(e?.response?.data?.detail || "Gagal"); }
   };
 

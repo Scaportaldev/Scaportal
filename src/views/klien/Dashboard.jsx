@@ -22,6 +22,10 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 
+
+export const klienDashboardQuery = { queryKey: ["klien", "dashboard"], queryFn: kapi.klienDashboard };
+export const prefetch = (qc) => qc.prefetchQuery(klienDashboardQuery);
+
 export default function KlienDashboard() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
@@ -30,10 +34,7 @@ export default function KlienDashboard() {
   const [dialog, setDialog] = useState(null);
   const [exporting, setExporting] = useState(false);
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: ["klien", "dashboard"],
-    queryFn: kapi.klienDashboard,
-  });
+  const { data, isLoading, error } = useQuery(klienDashboardQuery);
   useEffect(() => {
     if (error) toast.error(apiError(error, "Gagal memuat data stok klien"));
   }, [error]);

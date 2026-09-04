@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { Save, FileDown, RotateCcw, FolderOpen, Trash2, X, Plus } from "lucide-react";
 import { toast } from "sonner";
@@ -9,6 +10,10 @@ import { formatRp } from "@/lib/format";
 import { MODULES, SUMMARY_ICON } from "@/components/hpp/modules";
 import SummaryPanel from "@/components/hpp/SummaryPanel";
 import * as api from "@/lib/hppApi";
+
+// Daftar perhitungan tersimpan (ringkasan) — dipakai useQuery DAN prefetch (hover menu).
+export const hppListQuery = { queryKey: ["hpp", "list"], queryFn: () => api.listCalculations() };
+export const prefetch = (qc) => qc.prefetchQuery(hppListQuery);
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const NAV = [{ id: "summary", label: "Ringkasan", icon: SUMMARY_ICON }, ...MODULES];
@@ -17,14 +22,15 @@ export default function HppCalculator() {
   const [state, setState] = useState(defaultState());
   const [active, setActive] = useState("summary");
   const [meta, setMeta] = useState({ id: null, name: "Produk Baru", customer: "", notes: "" });
-  const [saved, setSaved] = useState([]);
   const [drawer, setDrawer] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
 
   const res = useMemo(() => calcAll(state), [state]);
 
-  const loadSaved = () => api.listCalculations().then(setSaved).catch(() => {});
-  useEffect(() => { loadSaved(); }, []);
+  const queryClient = useQueryClient();
+  const { data: saved = [] } = useQuery(hppListQuery);
+  // Setelah simpan/hapus: ambil ulang daftar (cache di-invalidate).
+  const loadSaved = () => queryClient.invalidateQueries({ queryKey: ["hpp"] });
 
   const update = (section, field, value) =>
     setState((p) => ({ ...p, [section]: { ...p[section], [field]: value } }));
@@ -161,7 +167,7 @@ export default function HppCalculator() {
               const on = active === m.id;
               return (
                 <button key={m.id} data-testid={`nav-${m.id}`} onClick={() => setActive(m.id)}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium transition-colors border-l-4 ${on ? "bg-primary/5 border-primary text-primary" : "border-transparent text-muted-foreground hover:bg-secondary"}`}>
+                  className={`pressable w-full flex items-center gap-3 px-3 py-2.5 rounded-md text-sm font-medium border-l-4 ${on ? "bg-primary/5 border-primary text-primary" : "border-transparent text-muted-foreground hover:bg-secondary"}`}>
                   <Icon className="h-4 w-4 shrink-0" />
                   <span className="truncate">{m.label}</span>
                 </button>

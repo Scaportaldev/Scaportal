@@ -34,6 +34,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { cn } from "@/lib/utils";
 
+
+export const topOptionsQuery = { queryKey: ["tempo", "top-options"], queryFn: tapi.getTopOptions };
+export const prefetch = (qc) => qc.prefetchQuery(topOptionsQuery);
+
 const DUE_FILTERS = [
   { value: "all", label: "Semua" },
   { value: "overdue", label: "Lewat Tempo" },
@@ -75,10 +79,7 @@ export default function TempoInvoices() {
     return () => clearTimeout(h);
   }, [search]);
 
-  const { data: topOptions = [], refetch: refetchTop } = useQuery({
-    queryKey: ["tempo", "top-options"],
-    queryFn: tapi.getTopOptions,
-  });
+  const { data: topOptions = [], refetch: refetchTop } = useQuery(topOptionsQuery);
 
   const params = useMemo(() => {
     const p = { sort_by: sortBy, order };
