@@ -10,6 +10,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useQueryClient } from "@tanstack/react-query";
 import { warmRoute, preloadAllRoutesWhenIdle } from "@/lib/routePreload";
 import { useLang } from "@/context/LangContext";
+import { IDLE_TIMEOUT_MS, IDLE_WARN_MS, touchActivity, getLastActivity, isIdleExpired } from "@/lib/session";
 import ThemeToggle from "@/components/ThemeToggle";
 import Logo from "@/components/Logo";
 import Breadcrumbs from "@/components/Breadcrumbs";
@@ -22,8 +23,12 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select";
 
-const TIMEOUT_MS = 60 * 60 * 1000;
-const WARN_MS = 58 * 60 * 1000;
+// Idle timeout 30 menit (peringatan di menit ke-28). Waktu aktivitas terakhir disimpan
+// di sessionStorage (lib/session) agar tetap dihitung saat tab di-background / reload.
+const TIMEOUT_MS = IDLE_TIMEOUT_MS;
+const WARN_MS = IDLE_WARN_MS;
+const ACTIVITY_WRITE_THROTTLE_MS = 5 * 1000;
+const IDLE_POLL_MS = 15 * 1000;
 
 export default function AppShell() {
   const { user, logout, sectionUnlocked, perms } = useAuth();
@@ -39,6 +44,8 @@ export default function AppShell() {
   const warnRef = useRef(null);
   const outRef = useRef(null);
   const mainRef = useRef(null);
+  const lastWriteRef = useRef(0);
+  const loggingOutRef = useRef(false);
 
   // Scroll ke atas saat berpindah halaman. Yang scroll adalah <main> (overflow-y-auto),
   // bukan window, jadi reset dilakukan pada elemen itu (instan, agar tidak bertabrakan
@@ -51,24 +58,57 @@ export default function AppShell() {
 
   const doLogout = useCallback(async (type) => { await logout(type); navigate("/login"); }, [logout, navigate]);
 
-  const resetTimers = useCallback(() => {
+  const idleLogout = useCallback(() => {
+    if (loggingOutRef.current) return;
+    loggingOutRef.current = true;
+    toast.warning("Anda telah logout otomatis karena tidak aktif selama 30 menit.");
+    doLogout("auto");
+  }, [doLogout]);
+
+  const resetTimers = useCallback((fromUser = true) => {
     setWarn(false);
     clearTimeout(warnRef.current);
     clearTimeout(outRef.current);
-    warnRef.current = setTimeout(() => setWarn(true), WARN_MS);
-    outRef.current = setTimeout(() => {
-      toast.warning("Anda telah logout otomatis karena tidak aktif.");
-      doLogout("auto");
-    }, TIMEOUT_MS);
-  }, [doLogout]);
+    const now = Date.now();
+    if (fromUser && now - lastWriteRef.current > ACTIVITY_WRITE_THROTTLE_MS) {
+      lastWriteRef.current = now;
+      touchActivity(now);
+    }
+    // Sisa waktu dihitung dari aktivitas terakhir yang tercatat (bukan selalu dari nol),
+    // supaya setelah reload timer tidak "mulai ulang" 30 menit.
+    const last = getLastActivity() || now;
+    const remain = Math.max(0, TIMEOUT_MS - (now - last));
+    const remainWarn = Math.max(0, WARN_MS - (now - last));
+    warnRef.current = setTimeout(() => setWarn(true), remainWarn);
+    outRef.current = setTimeout(idleLogout, remain);
+  }, [idleLogout]);
 
   useEffect(() => {
-    const events = ["mousedown", "keydown", "scroll", "touchstart", "click"];
-    const handler = () => resetTimers();
-    events.forEach((e) => window.addEventListener(e, handler));
-    resetTimers();
-    return () => { events.forEach((e) => window.removeEventListener(e, handler)); clearTimeout(warnRef.current); clearTimeout(outRef.current); };
-  }, [resetTimers]);
+    const events = ["mousedown", "keydown", "scroll", "touchstart", "click", "pointerdown"];
+    const handler = () => resetTimers(true);
+    events.forEach((e) => window.addEventListener(e, handler, { passive: true }));
+
+    // Timer JS dibekukan saat tab di-background (khususnya tablet/mobile). Saat user
+    // kembali (visibility/focus/pageshow) atau tiap 15 detik, cek jam sebenarnya.
+    const check = () => { if (isIdleExpired()) idleLogout(); };
+    const onVisible = () => { if (document.visibilityState === "visible") { check(); resetTimers(false); } };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", onVisible);
+    window.addEventListener("pageshow", onVisible);
+    const poll = setInterval(check, IDLE_POLL_MS);
+
+    touchActivity();
+    resetTimers(false);
+    return () => {
+      events.forEach((e) => window.removeEventListener(e, handler));
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", onVisible);
+      window.removeEventListener("pageshow", onVisible);
+      clearInterval(poll);
+      clearTimeout(warnRef.current);
+      clearTimeout(outRef.current);
+    };
+  }, [resetTimers, idleLogout]);
 
   const isSuper = user?.role === "superadmin";
 
@@ -80,7 +120,7 @@ export default function AppShell() {
         { to: "/stok/lainnya", label: "Mutasi Lain", icon: Package },
         { to: "/stok/laporan-stok", label: "Laporan Stok", icon: ClipboardList },
         { to: "/stok/laporan-detail", label: "Laporan Detail", icon: BarChart3, locked: true, show: perms.canStokDetail },
-        { to: "/stok/tutup-tahun", label: "Tutup Tahun", icon: CalendarX, locked: true, show: perms.canStokYearClose },
+        { to: "/stok/tutup-tahun", label: "Tutup Laporan Stok", icon: CalendarX, locked: true, show: perms.canStokYearClose },
       ].filter((m) => m.show !== false)
     : [];
 
@@ -94,7 +134,7 @@ export default function AppShell() {
         { to: "/po", label: "Dashboard PO", icon: LayoutDashboard, end: true },
         { to: "/po/pos", label: "Daftar PO", icon: ListTodo },
         { to: "/po/kalender", label: "Kalender Jadwal", icon: CalendarDays },
-        { to: "/po/tutup", label: "Tutup PO", icon: Archive, show: isSuper },
+        { to: "/po/tutup", label: "Tutup Tracking PO", icon: Archive, show: isSuper },
       ].filter((m) => m.show !== false)
     : [];
 
@@ -104,7 +144,7 @@ export default function AppShell() {
     ? [
         { to: "/stok-klien", label: "Dashboard Stok Klien", icon: Boxes, end: true },
         { to: "/stok-klien/riwayat", label: "Riwayat Mutasi Klien", icon: History },
-        { to: "/stok-klien/tutup", label: "Tutup Data Klien", icon: Archive, show: isSuper },
+        { to: "/stok-klien/tutup", label: "Tutup Stok Klien", icon: Archive, show: isSuper },
       ].filter((m) => m.show !== false)
     : [];
 
