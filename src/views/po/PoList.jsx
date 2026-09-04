@@ -1,12 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { Plus, Search, Eye, Pencil, Trash2, Package, FileDown, Archive } from "lucide-react";
+import { Plus, Search, Eye, Pencil, Trash2, Package, FileDown } from "lucide-react";
 import { toast } from "sonner";
 import * as api from "@/lib/poApi";
 import { useLang } from "@/context/LangContext";
-import { useAuth } from "@/context/AuthContext";
-import CloseAllDialog from "@/components/CloseAllDialog";
 import { BUCKET_META } from "@/lib/poStages";
 import { fmtDate } from "@/lib/format";
 import { Button } from "@/components/ui/button";
@@ -49,15 +47,12 @@ function BucketBadge({ bucket }) {
 
 export default function PoList() {
   const { t, lang } = useLang();
-  const { user } = useAuth();
-  const isSuper = user?.role === "superadmin";
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const bucket = params.get("bucket") || "";
   const [search, setSearch] = useState("");
   const [debSearch, setDebSearch] = useState("");
   const [delId, setDelId] = useState(null);
-  const [closeOpen, setCloseOpen] = useState(false);
   const [month, setMonth] = useState("all");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(24);
@@ -119,12 +114,6 @@ export default function PoList() {
       pageDescription="Kelola PO, pantau progres produksi, dan jadwal pengiriman."
       pageHeaderAction={(
         <div className="flex flex-wrap items-center gap-2">
-          {isSuper && (
-            <Button data-testid="po-close-all" onClick={() => setCloseOpen(true)} variant="outline"
-              className="rounded-full gap-2 border-destructive/40 text-destructive hover:border-destructive/60 hover:bg-destructive/10 hover:text-destructive">
-              <Archive className="h-4 w-4" /> Tutup PO
-            </Button>
-          )}
           <Button data-testid="po-export-pdf" onClick={downloadPdf} variant="outline" className="rounded-full gap-2">
             <FileDown className="h-4 w-4" /> {t("exportPdf")}
           </Button>
@@ -252,24 +241,6 @@ export default function PoList() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      <CloseAllDialog
-        open={closeOpen}
-        onOpenChange={setCloseOpen}
-        title="Tutup PO"
-        description="Seperti Tutup Tahun: unduh PDF rekap seluruh PO sebagai arsip, lalu hapus semua data PO Tracker."
-        downloadLabel="Unduh PDF Rekap PO"
-        onDownload={() => api.exportPoRekapPdf({})}
-        deleteLabel="Hapus Semua Data PO"
-        confirmTitle="Yakin ingin menghapus SEMUA data PO?"
-        confirmDescription="Seluruh PO, log tahapan, jadwal pengiriman, dan foto bukti akan dihapus permanen. Tindakan ini tidak bisa dibatalkan."
-        onDelete={async () => {
-          const data = await api.closeAllPo();
-          toast.success(`PO ditutup. ${data.po_deleted} PO, ${data.jadwal_deleted} jadwal, ${data.foto_deleted} foto dihapus.`);
-          queryClient.invalidateQueries({ queryKey: ["po"] });
-        }}
-        testidPrefix="po-close"
-      />
     </PageContainer>
   );
 }

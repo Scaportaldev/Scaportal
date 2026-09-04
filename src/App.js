@@ -33,9 +33,11 @@ const PoList = L("/po/pos");
 const PoForm = L("/po/pos/new");
 const PoDetail = L("/po/pos/:id");
 const PoCalendar = L("/po/kalender");
+const PoClose = L("/po/tutup");
 
 const KlienDashboard = L("/stok-klien");
 const KlienHistory = L("/stok-klien/riwayat");
+const KlienClose = L("/stok-klien/tutup");
 
 const TempoInvoices = L("/tempo");
 const TempoReports = L("/tempo/laporan");
@@ -101,9 +103,11 @@ function App() {
                     <Route path="po/pos/:id" element={P("canPo", <PoDetail />)} />
                     <Route path="po/pos/:id/edit" element={P("canPo", <PoForm />)} />
                     <Route path="po/kalender" element={P("canPo", <PoCalendar />)} />
+                    <Route path="po/tutup" element={P("canPo", <PoClose />)} />
                     {/* Stok Klien */}
                     <Route path="stok-klien" element={P("canStokKlien", <KlienDashboard />)} />
                     <Route path="stok-klien/riwayat" element={P("canStokKlien", <KlienHistory />)} />
+                    <Route path="stok-klien/tutup" element={P("canStokKlien", <KlienClose />)} />
                     {/* Jatuh Tempo Klien */}
                     <Route path="tempo" element={P("canTempo", <TempoInvoices />)} />
                     <Route path="tempo/laporan" element={P("canTempo", <TempoReports />)} />
