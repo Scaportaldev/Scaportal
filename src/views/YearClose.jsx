@@ -89,7 +89,7 @@ function Inner() {
     <PageContainer
       testid="year-close-page"
       className="mx-auto w-full max-w-2xl"
-      pageTitle="Tutup Tahun"
+      pageTitle="Tutup Laporan Stok"
       pageDescription={`Unduh laporan akhir tahun ${year}, lalu reset data untuk tahun baru.`}
     >
 
@@ -164,5 +164,5 @@ function Inner() {
 }
 
 export default function YearClose() {
-  return <SectionGate title="Tutup Tahun (Reset Data)"><Inner /></SectionGate>;
+  return <SectionGate title="Tutup Laporan Stok (Reset Data)"><Inner /></SectionGate>;
 }

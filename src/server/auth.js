@@ -38,12 +38,16 @@ export async function createAccessToken({ id, username, role, sid }) {
     .sign(secretKey());
 }
 
+/**
+ * Cookie sesi TANPA maxAge/expires → dihapus browser saat ditutup (session cookie).
+ * Batas umur token tetap dijaga oleh JWT `exp` (TOKEN_HOURS). Kebijakan "tab ditutup
+ * → login ulang" dan "idle 30 menit" ditegakkan di klien (src/lib/session.js).
+ */
 export function setAuthCookie(res, token) {
   res.cookies.set("access_token", token, {
     httpOnly: true,
     secure: true,
     sameSite: "none",
-    maxAge: TOKEN_HOURS * 3600,
     path: "/",
   });
   return res;

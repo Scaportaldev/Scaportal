@@ -1,9 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { Save, FileDown, RotateCcw, FolderOpen, Trash2, X, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { defaultState, emptyState } from "@/lib/hppDefaults";
+import { readHppDraft, writeHppDraft } from "@/lib/hppDraft";
+import { useAuth } from "@/context/AuthContext";
 import { Heading } from "@/components/ui/heading";
 import { calcAll } from "@/lib/hppCalc";
 import { formatRp } from "@/lib/format";
@@ -18,12 +20,25 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 const NAV = [{ id: "summary", label: "Ringkasan", icon: SUMMARY_ICON }, ...MODULES];
 
+const DEFAULT_META = { id: null, name: "Produk Baru", customer: "", notes: "" };
+
 export default function HppCalculator() {
-  const [state, setState] = useState(defaultState());
-  const [active, setActive] = useState("summary");
-  const [meta, setMeta] = useState({ id: null, name: "Produk Baru", customer: "", notes: "" });
+  const { user } = useAuth();
+  const userId = user?.id;
+
+  // Pulihkan draft (isian yang belum di-"Simpan") dari sessionStorage bila ada,
+  // supaya pindah menu lalu kembali tidak menghilangkan pekerjaan user.
+  const draft = useMemo(() => readHppDraft(userId), [userId]);
+  const [state, setState] = useState(() => (draft?.state ? { ...defaultState(), ...draft.state } : defaultState()));
+  const [active, setActive] = useState(() => draft?.active || "summary");
+  const [meta, setMeta] = useState(() => ({ ...DEFAULT_META, ...(draft?.meta || {}) }));
   const [drawer, setDrawer] = useState(false);
   const [saveOpen, setSaveOpen] = useState(false);
+
+  // Simpan draft setiap ada perubahan (ringan: sessionStorage, per-tab, per-user).
+  useEffect(() => {
+    writeHppDraft(userId, { state, active, meta, savedAt: Date.now() });
+  }, [userId, state, active, meta]);
 
   const res = useMemo(() => calcAll(state), [state]);
 
@@ -101,7 +116,7 @@ export default function HppCalculator() {
 
   const newCalc = () => {
     setState(emptyState());
-    setMeta({ id: null, name: "Produk Baru", customer: "", notes: "" });
+    setMeta({ ...DEFAULT_META });
     setActive("summary");
   };
 

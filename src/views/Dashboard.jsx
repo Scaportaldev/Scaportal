@@ -53,7 +53,7 @@ export default function Dashboard() {
       pageDescription={`Ringkasan stok & aktivitas mutasi tahun ${data.year}.`}
     >
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard testid="card-total-paper" icon={FileStack} accent="primary" label="Total Stok Kertas"
           value={`${formatNumber(data.total_paper_stock)} Rim`} />
         <StatCard testid="card-total-ink" icon={Droplets} accent="rose" label="Total Stok Tinta"

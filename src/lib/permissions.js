@@ -15,7 +15,7 @@ export const PERMISSION_GROUPS = [
     children: [
       { key: "stok_detail", label: "Laporan Detail & nominal harga", description: "Nilai rupiah stok, laporan detail, rekap PPN" },
       { key: "stok_pdf", label: "Download PDF laporan", description: "Ekspor PDF mutasi & laporan stok" },
-      { key: "stok_tutup_tahun", label: "Tutup Tahun", description: "Reset seluruh data mutasi tahun berjalan" },
+      { key: "stok_tutup_tahun", label: "Tutup Laporan Stok", description: "Reset seluruh data mutasi tahun berjalan" },
     ],
   },
   { key: "po", label: "PO Tracker", description: "Dashboard PO, daftar PO, tahapan produksi, kalender" },

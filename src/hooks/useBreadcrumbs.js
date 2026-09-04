@@ -13,7 +13,7 @@ const ROUTE_LABELS = {
   "laporan-stok": "Laporan Stok",
   "laporan-detail": "Laporan Detail",
   "log-user": "Log & User",
-  "tutup-tahun": "Tutup Tahun",
+  "tutup-tahun": "Tutup Laporan Stok",
   po: "Tracking PO",
   pos: "Daftar PO",
   new: "PO Baru",
@@ -41,10 +41,11 @@ export function useBreadcrumbs() {
       items.push({ title: "Detail", link: path });
       return;
     }
-    items.push({
-      title: ROUTE_LABELS[seg] ?? seg.charAt(0).toUpperCase() + seg.slice(1).replace(/-/g, " "),
-      link: path,
-    });
+    // "tutup" dipakai dua modul: /po/tutup → Tutup Tracking PO, /stok-klien/tutup → Tutup Stok Klien.
+    const title = seg === "tutup"
+      ? (path.startsWith("/po/") ? "Tutup Tracking PO" : path.startsWith("/stok-klien/") ? "Tutup Stok Klien" : ROUTE_LABELS[seg])
+      : (ROUTE_LABELS[seg] ?? seg.charAt(0).toUpperCase() + seg.slice(1).replace(/-/g, " "));
+    items.push({ title, link: path });
   });
 
   return items;

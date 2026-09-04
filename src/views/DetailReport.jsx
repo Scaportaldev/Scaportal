@@ -138,7 +138,7 @@ function Inner() {
 
       {!data ? (
         <div className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-24 w-full rounded-xl" />)}
           </div>
           <Skeleton className="h-40 w-full rounded-xl" />
@@ -148,7 +148,7 @@ function Inner() {
         </div>
       ) : (
         <>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <StatCard testid="detail-nominal-paper" icon={FileStack} accent="primary" label="Nominal Stok Kertas" value={formatRupiah(data.nominal_paper)} />
             <StatCard testid="detail-nominal-ink" icon={Droplets} accent="rose" label="Nominal Stok Tinta" value={formatRupiah(data.nominal_ink)} />
             <StatCard testid="detail-nominal-other" icon={Package} accent="amber" label="Nominal Stok Lain" value={formatRupiah(data.nominal_other || 0)} />

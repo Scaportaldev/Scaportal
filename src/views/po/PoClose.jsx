@@ -8,7 +8,7 @@ export default function PoClose() {
   return (
     <ClosePage
       testid="po-close-page"
-      pageTitle="Tutup PO"
+      pageTitle="Tutup Tracking PO"
       pageDescription="Unduh PDF rekap seluruh PO sebagai arsip, lalu reset data PO Tracker."
       downloadLabel="Unduh PDF Rekap PO"
       downloadNote="PDF Rekap Purchase Order (semua bulan, dikelompokkan per bulan)"
