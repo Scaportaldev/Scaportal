@@ -59,17 +59,12 @@ export async function buildKlienStockPdf({ summary, kliens, statusFilter }) {
   });
 
   section(ctx, "Rincian Stok per Klien & PO");
-  if (rows.length === 0) {
-    text(ctx, "Belum ada data stok klien.", { size: 9, color: C.sub });
-    ctx.y -= 14;
-  } else {
-    drawTable(
-      ctx,
-      ["Nama Klien", "No PO", "Tanggal PO", "Jenis Item", "Satuan", "Stok", "Status", "Keterangan"],
-      rows,
-      { weights: [2.2, 1.1, 1.1, 2.2, 0.9, 1, 1.4, 2.4], rightCols: [5], fontSize: 8 },
-    );
-  }
+  drawTable(
+    ctx,
+    ["Nama Klien", "No PO", "Tanggal PO", "Jenis Item", "Satuan", "Stok", "Status", "Keterangan"],
+    rows,
+    { weights: [2.2, 1.1, 1.1, 2.2, 0.9, 1, 1.4, 2.4], rightCols: [5], fontSize: 8 },
+  );
 
   return finish(ctx);
 }
@@ -98,17 +93,12 @@ export async function buildKlienHistoryPdf({ mutations, periodLabel }) {
     m.keterangan || "-",
   ]);
 
-  if (rows.length === 0) {
-    text(ctx, "Belum ada mutasi tercatat.", { size: 9, color: C.sub });
-    ctx.y -= 14;
-  } else {
-    drawTable(
-      ctx,
-      ["Tanggal & Waktu", "Nama Klien", "No PO", "Jenis Item", "Mutasi", "Jumlah", "Keterangan"],
-      rows,
-      { weights: [1.6, 2, 1, 2, 1, 1.4, 2.6], rightCols: [5], fontSize: 8 },
-    );
-  }
+  drawTable(
+    ctx,
+    ["Tanggal & Waktu", "Nama Klien", "No PO", "Jenis Item", "Mutasi", "Jumlah", "Keterangan"],
+    rows,
+    { weights: [1.6, 2, 1, 2, 1, 1.4, 2.6], rightCols: [5], fontSize: 8 },
+  );
 
   return finish(ctx);
 }
