@@ -1,6 +1,6 @@
 import { handle, json, pageParams, paged } from "@/server/http";
-import { requireSectionAccess } from "@/server/auth";
-import { listActivity } from "@/server/logs";
+import { requireSectionAccess, requireSuperadmin, logAudit } from "@/server/auth";
+import { listActivity, clearActivity } from "@/server/logs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,4 +12,15 @@ export const GET = handle(async (req) => {
   if (!pg) return json(await listActivity(1000));
   const { items, total } = await listActivity(pg);
   return json(paged(items, total, pg));
+});
+
+/**
+ * DELETE /api/logs/activity — bersihkan SEMUA log aktivitas (khusus Superadmin).
+ * Aksi tercatat di log audit.
+ */
+export const DELETE = handle(async (req) => {
+  const current = await requireSuperadmin(req);
+  const deleted = await clearActivity();
+  await logAudit(current, "delete", "log", null, { keterangan: "Bersihkan Log Aktivitas", jumlah_dihapus: deleted }, null);
+  return json({ deleted });
 });
