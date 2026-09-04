@@ -152,7 +152,7 @@ export default function AppShell() {
           <div className="mt-1 text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Stok • PO • Klien</div>
         </div>
       </div>
-      <nav className="flex-1 space-y-0.5 p-3 overflow-y-auto" data-testid="sidebar-nav">
+      <nav className="min-h-0 flex-1 touch-pan-y space-y-0.5 overflow-y-auto overscroll-contain p-3" data-testid="sidebar-nav">
         {noTools && (
           <p className="px-3 py-4 text-xs text-muted-foreground" data-testid="sidebar-no-tools">
             Belum ada tools yang diaktifkan untuk akun ini.
@@ -212,7 +212,7 @@ export default function AppShell() {
   );
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className="app-viewport flex overflow-hidden bg-background">
       <aside className="hidden md:flex h-full w-64 shrink-0 flex-col border-r border-border bg-card">
         {SidebarInner}
       </aside>
@@ -220,7 +220,7 @@ export default function AppShell() {
       {open && (
         <div className="fixed inset-0 z-50 md:hidden">
           <div className="absolute inset-0 bg-black/50" onClick={() => setOpen(false)} />
-          <div className="absolute left-0 top-0 h-full w-64 bg-card shadow-xl">{SidebarInner}</div>
+          <div className="absolute left-0 top-0 h-full w-64 overscroll-contain bg-card shadow-xl">{SidebarInner}</div>
         </div>
       )}
 
@@ -249,7 +249,7 @@ export default function AppShell() {
         {/* flex flex-col: supaya PageContainer (flex-1) bisa mengisi sisa tinggi viewport
             secara dinamis (dibutuhkan halaman tabel full-height). Halaman lain tetap
             scroll normal karena overflow-y-auto dipertahankan. */}
-        <main ref={mainRef} className="flex min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden p-4 md:p-8">
+        <main ref={mainRef} className="flex min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden overscroll-y-contain p-4 md:p-8">
           {/* Fallback saat chunk halaman lazy dimuat — sidebar & header tetap terlihat */}
           <Suspense
             fallback={

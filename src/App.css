@@ -1,3 +1,33 @@
 .App {
     min-height: 100vh;
+    min-height: 100dvh;
+}
+
+/* =========================================================================
+   Scroll proper di tablet/perangkat sentuh (iPad & Android tablet)
+   ========================================================================= */
+
+/* Tinggi shell aplikasi: 100dvh mengikuti viewport TERLIHAT (toolbar browser
+   Safari/Chrome tablet muncul-hilang). 100vh dipertahankan sebagai fallback
+   untuk browser lama. Tanpa ini ujung bawah sidebar terpotong dan scroll
+   terasa "stuck" di iPad. */
+.app-viewport {
+    height: 100vh;
+    height: 100dvh;
+}
+
+/* Cegah pull-to-refresh / rubber-band ikut menarik seluruh shell aplikasi
+   saat area scroll internal sudah mentok (scroll chaining). */
+html, body {
+    overscroll-behavior-y: none;
+}
+
+/* Momentum scroll halus untuk semua area scroll internal pada layar sentuh. */
+@media (pointer: coarse) {
+    main,
+    nav,
+    .overflow-auto,
+    .overflow-y-auto {
+        -webkit-overflow-scrolling: touch;
+    }
 }
