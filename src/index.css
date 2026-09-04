@@ -153,6 +153,35 @@ th.text-right {
 }
 
 /* ==========================================================================
+   iOS SAFARI — input tanggal/waktu
+   Safari iOS merender input[type=date|time|datetime-local|month] sebagai kontrol
+   native ber-lebar intrinsik yang MENOLAK menyusut di grid/flex, sehingga field
+   meluber keluar kartu dan menimpa field sebelahnya (Riwayat Klien, Invoice,
+   Mutasi). `appearance:none` + display:block + width:100% memaksa kontrol
+   mengikuti lebar sel; pseudo-element menormalkan tinggi & perataan saat kosong.
+   ========================================================================== */
+input[type="date"],
+input[type="time"],
+input[type="datetime-local"],
+input[type="month"] {
+    -webkit-appearance: none;
+    appearance: none;
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    -webkit-min-logical-width: 0;
+}
+input[type="date"]::-webkit-date-and-time-value,
+input[type="time"]::-webkit-date-and-time-value,
+input[type="datetime-local"]::-webkit-date-and-time-value,
+input[type="month"]::-webkit-date-and-time-value {
+    text-align: left;
+    min-height: 1.25rem;
+    line-height: 1.25rem;
+}
+
+/* ==========================================================================
    PAGE TRANSITION — konten halaman masuk dengan fade + slide 6px (150ms).
    Wrapper tetap flex-1/min-h-0 agar halaman fillHeight (tabel) tidak berubah.
    ========================================================================== */
