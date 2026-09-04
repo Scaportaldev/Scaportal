@@ -38,6 +38,16 @@ export default function AppShell() {
   const [warn, setWarn] = useState(false);
   const warnRef = useRef(null);
   const outRef = useRef(null);
+  const mainRef = useRef(null);
+
+  // Scroll ke atas saat berpindah halaman. Yang scroll adalah <main> (overflow-y-auto),
+  // bukan window, jadi reset dilakukan pada elemen itu (instan, agar tidak bertabrakan
+  // dengan animasi masuk halaman). Ganti query string/filter tidak memicu reset.
+  useEffect(() => {
+    const el = mainRef.current;
+    if (el) el.scrollTop = 0;
+    if (typeof window !== "undefined") window.scrollTo(0, 0);
+  }, [location.pathname]);
 
   const doLogout = useCallback(async (type) => { await logout(type); navigate("/login"); }, [logout, navigate]);
 
@@ -237,7 +247,7 @@ export default function AppShell() {
         {/* flex flex-col: supaya PageContainer (flex-1) bisa mengisi sisa tinggi viewport
             secara dinamis (dibutuhkan halaman tabel full-height). Halaman lain tetap
             scroll normal karena overflow-y-auto dipertahankan. */}
-        <main className="flex min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden p-4 md:p-8">
+        <main ref={mainRef} className="flex min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden p-4 md:p-8">
           {/* Fallback saat chunk halaman lazy dimuat — sidebar & header tetap terlihat */}
           <Suspense
             fallback={
