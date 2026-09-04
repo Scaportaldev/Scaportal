@@ -153,6 +153,18 @@ th.text-right {
 }
 
 /* ==========================================================================
+   PAGE TRANSITION — konten halaman masuk dengan fade + slide 6px (150ms).
+   Wrapper tetap flex-1/min-h-0 agar halaman fillHeight (tabel) tidak berubah.
+   ========================================================================== */
+.page-enter {
+    animation: pageIn 150ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes pageIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: none; }
+}
+
+/* ==========================================================================
    PRESSABLE — feedback taktil saat ditekan (ala Vercel/Claude): mengecil halus,
    lepas dengan easing "spring" cepat. Dipakai item menu, tab, dan aksi kecil.
    ========================================================================== */
@@ -182,6 +194,7 @@ th.text-right {
         animation: none;
     }
     .pressable, .pressable:active, .pressable:hover { transform: none; }
+    .page-enter { animation: none; }
     *,
     *::before,
     *::after {
